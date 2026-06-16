@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Chat Room Test</title>
+</head>
+
+<body>
+    <h2>Room: <span id="room-display"></span></h2>
+    <p id="typing-indicator" style="color: green;"></p> <!-- Affiche "est en train d'écrire..." -->
+    <textarea id="chat-log" cols="100" rows="20" readonly></textarea><br>
+    <input id="chat-message-input" type="text" size="100" placeholder="Tape ton message ici"><br>
+    <input id="chat-message-submit" type="button" value="Envoyer">
+
+    <script>
+        const userId = 1;  // ← Ton ID utilisateur
+        const pathParts = window.location.pathname.split('/');
+        const roomId = pathParts[pathParts.length - 2];
+        document.getElementById('room-display').textContent = roomId;
+
+        const chatSocket = new WebSocket(
+            'ws://' + window.location.hostname + ':8000/ws/users/' + userId + '/chat/'
+        );
+
+        let typingTimeout;
+        let typingTimer;
+        const TYPING_DELAY = 2000; // ms
+
+        chatSocket.onopen = () => {
+            console.log("✅ Connexion WebSocket établie");
+        };
+        chatSocket.onmessage = function (e) {
+            const data = JSON.parse(e.data);
+
+            // ✏️ L'autre utilisateur tape
+            if (data.type === 'typing' && data.user != userId) {
+                const typingIndicator = document.getElementById("typing-indicator");
+                typingIndicator.textContent = "L'autre utilisateur est en train d'écrire...";
+
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    typingIndicator.textContent = "";
+                }, 2000);
+            }
+
+            // 🛑 Il a arrêté de taper
+            else if (data.type === 'stop_typing' && data.user != userId) {
+                const typingIndicator = document.getElementById("typing-indicator");
+                typingIndicator.textContent = "";
+            }
+
+            // 💬 Nouveau message texte
+            else if (data.type === 'message') {
+                document.querySelector('#chat-log').value += `[${data.userName}] ${data.message}\n`;
+            }
+
+            // Sinon, log
+            else {
+                console.log("📎 Autre type reçu :", data);
+            }
+        };
+
+
+        chatSocket.onclose = function (e) {
+            console.error('❌ Connexion WebSocket fermée');
+        };
+
+        // Focus clavier
+        document.querySelector('#chat-message-input').focus();
+
+        // Envoie "typing" dès qu’on tape
+        document.querySelector('#chat-message-input').oninput = function () {
+            chatSocket.send(JSON.stringify({
+                action: 'typing',
+                user: userId,
+                roomId: roomId
+            }));
+
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => {
+                chatSocket.send(JSON.stringify({
+                    action: 'stop_typing',
+                    user: userId,
+                    roomId: roomId
+                }));
+            }, TYPING_DELAY);
+        };
+
+        // "Enter" pour envoyer
+        document.querySelector('#chat-message-input').onkeyup = function (e) {
+            if (e.key === 'Enter') {
+                document.querySelector('#chat-message-submit').click();
+            }
+        };
+
+        // Envoi du message
+        document.querySelector('#chat-message-submit').onclick = function () {
+            const messageInputDom = document.querySelector('#chat-message-input');
+            const message = messageInputDom.value.trim();
+
+            if (message !== '') {
+                chatSocket.send(JSON.stringify({
+                    action: 'message',
+                    message: message,
+                    user: userId,
+                    roomId: roomId
+                }));
+
+                // Envoie aussi stop_typing une fois qu’on envoie
+                chatSocket.send(JSON.stringify({
+                    action: 'stop_typing',
+                    user: userId,
+                    roomId: roomId
+                }));
+
+                messageInputDom.value = '';
+            }
+        };
+    </script>
+</body>
+
+</html>
