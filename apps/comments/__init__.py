@@ -1,0 +1,1 @@
+default_app_config = 'apps.client.commentaires.apps.CommentairesConfig'

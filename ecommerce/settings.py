@@ -34,45 +34,70 @@ ALLOWED_HOSTS = ['*']
 AUTH_USER_MODEL = 'comptes.CustomUser'
 
 
-# Application definition
+# ==============================================================================
+# INSTALLED APPLICATIONS CONFIGURATION
+# ==============================================================================
 
-INSTALLED_APPS = [
-    'daphne',
+DJANGO_APPS = [
+    'daphne',  # Doit impérativement être avant django.contrib.staticfiles
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'allauth',
-    'allauth.socialaccount', 
-    'allauth.account',
-    'social_django',  # Nécessaire pour l'intégration avec les fournisseurs OAuth
-    'dj_rest_auth',  
-    'django_celery_beat',
-    "corsheaders",
-    'comptes',
-    'commandes', 
-    'contacts',
-    'produits',
-    'commentaires',
-    'boutique',
-    'ecom_app',
-    'categories',
-    'chat',
-    'panier',
-    'restaurant',
+]
+
+THIRD_PARTY_APPS = [
+    # ---- REST Framework & API Docs ----
     'rest_framework',
-    'drf_spectacular',
+    'rest_framework.authtoken',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
-    'rest_framework.authtoken',
     'django_filters',
+    'drf_spectacular',
+    
+    # ---- Authentication & OAuth ----
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount', 
+    'social_django',  
+    'dj_rest_auth',  
+    
+    # ---- Asynchronous & Tasks ----
+    'django_celery_beat',
+    'corsheaders',
+    
+    # ---- Database & Search Utilities ----
     'mptt',
     'django_elasticsearch_dsl',
     'taggit',
     # 'modeltranslation',
 ]
+
+LOCAL_APPS = [
+    # ---- Core & System Apps ----
+    'apps.accounts',         
+    'apps.notifications',   
+    'apps.coupons',
+    'apps.favorites',
+    'apps.payments', 
+    
+    # ---- Shared Domain Apps (Client & Vendor) ----
+    'apps.shops',           
+    'apps.products',        
+    'apps.categories',      
+    'apps.restaurant',      
+    
+    'apps.carts',           
+    'apps.orders',          
+    'apps.comments',        
+    'apps.contacts',        
+    'apps.chat',            
+]
+
+# Fusion finale requise par Django
+INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
