@@ -4,8 +4,8 @@ Utilise les templates définis et respecte les préférences utilisateur.
 """
 
 from django.contrib.auth import get_user_model
-from ecom_app.models import Notifications
-from ecom_app.notification_templates import get_template
+from apps.notifications.models import Notifications
+from apps.notifications.templates import get_template
 from django.utils import timezone
 from typing import Dict, Optional
 import logging
@@ -78,7 +78,7 @@ class NotificationService:
         Vérifie si l'utilisateur doit être notifié en fonction de ses préférences.
         """
         try:
-            from comptes.models import UserSettings
+            from apps.accounts.models import UserSettings
             settings = UserSettings.objects.get(user=user)
             
             # Si les notifications globales sont désactivées

@@ -159,8 +159,8 @@ class SellerAccount(models.Model):
     
 
 class ShopFollow(models.Model):
-    user = models.ForeignKey('comptes.CustomUser', on_delete=models.CASCADE, related_name="followed_shops")
-    shop = models.ForeignKey('apps.vendor.boutique.Shops', on_delete=models.CASCADE, related_name="followers")
+    user = models.ForeignKey('accounts.CustomUser', on_delete=models.CASCADE, related_name="followed_shops")
+    shop = models.ForeignKey('shops.Shops', on_delete=models.CASCADE, related_name="followers")
     followed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

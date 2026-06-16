@@ -14,6 +14,9 @@ from .utils import anonymize_user, hard_delete_user
 from rest_framework_simplejwt.tokens import AccessToken
 from .serializers import UserSerializer
 from django.contrib.auth import get_user_model
+from apps.notifications.models import Notifications
+from apps.chat.models import ChatMessage
+
 
 # Create your views here.
 
@@ -462,8 +465,6 @@ def notification_settings(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def unread_counters(request):
-    from ecom_app.models import Notifications
-    from chat.models import ChatMessage
 
     notifications_count = Notifications.objects.filter(
         user=request.user,

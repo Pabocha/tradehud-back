@@ -31,7 +31,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
-AUTH_USER_MODEL = 'comptes.CustomUser'
+AUTH_USER_MODEL = 'accounts.CustomUser'
 
 
 # ==============================================================================
@@ -151,7 +151,7 @@ SPECTACULAR_SETTINGS = {
 
 SIMPLE_JWT = {
   # It will work instead of the default serializer(TokenObtainPairSerializer).
-  "TOKEN_OBTAIN_SERIALIZER": "comptes.serializers.MyTokenObtainPairSerializer",
+  "TOKEN_OBTAIN_SERIALIZER": "accounts.serializers.MyTokenObtainPairSerializer",
   "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
   "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
   "BLACKLIST_AFTER_ROTATION": True,
@@ -213,7 +213,7 @@ WSGI_APPLICATION = 'ecommerce.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'Ecommerce',
+        'NAME': 'trade_hub_db',
         'USER': 'postgres',
         'PASSWORD': 'P@blo 2003',
         'HOST': '127.0.0.1',

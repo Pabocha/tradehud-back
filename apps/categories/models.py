@@ -50,7 +50,7 @@ class CategoryField(models.Model):
     ]
 
 
-    category = models.ForeignKey("Categories", related_name="fields", on_delete=models.CASCADE)
+    category = models.ForeignKey("categories.Categories", related_name="fields", on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     label = models.CharField(max_length=255)
     field_type = models.CharField(max_length=20, choices=FIELD_TYPES)
@@ -75,7 +75,7 @@ class CategoryAttribute(models.Model):
     ]
         
     category = models.ForeignKey(Categories, on_delete=models.CASCADE)
-    attribute = models.ForeignKey('apps.products.Attribute', on_delete=models.CASCADE)
+    attribute = models.ForeignKey('products.Attribute', on_delete=models.CASCADE)
     required = models.BooleanField(default=False)
 
     def __str__(self):

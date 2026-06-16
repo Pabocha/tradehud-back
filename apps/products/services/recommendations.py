@@ -7,10 +7,10 @@ from django.core.cache import cache
 from django.db.models import Q
 from django.utils import timezone
 
-from apps.orders.models import LigneCommande
+from apps.orders.models import OrderLine
 from apps.comments.models import Ratings
 from apps.accounts.models import ShopFollow
-from ecom_app.models import Favorites
+from apps.favorites.models import Favorites
 from apps.carts.models import CartItem
 from apps.products.models import Products, RecentlyViewedProduct
 
@@ -142,7 +142,7 @@ class RecommendationService:
         recent_bought_product_ids = set()
 
         line_items = (
-            LigneCommande.objects.filter(order__customer_id=user_id, order__order_date__gte=since_90d)
+            OrderLine.objects.filter(order__customer_id=user_id, order__order_date__gte=since_90d)
             .select_related("product", "variant__product", "shop", "product__category", "variant__product__category")
             .prefetch_related("product__tags", "variant__product__tags")
         )

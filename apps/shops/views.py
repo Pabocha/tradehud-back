@@ -1,21 +1,21 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, permissions, filters, status
 from django.utils.timezone import now
-from apps.vendor.produits.models import Products
-from comptes.models import SellerAccount
+from apps.products.models import Products
+from apps.accounts.models import SellerAccount
 from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db.models import Sum, Count, F, Avg
-from commandes.models import Orders, LigneCommande
-from comptes.models import ShopFollow
+from apps.orders.models import Orders, OrderLine
+from apps.accounts.models import ShopFollow
 from .serializers import *
 from .models import ShopStatistics
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django_filters.rest_framework import DjangoFilterBackend
 from .statistics_serializers import ShopStatisticsSerializer
-from apps.vendor.produits.serializers import ProductSerializer
-from apps.vendor.categories.models import Categories
+from apps.products.serializers import ProductSerializer
+from apps.categories.models import Categories
 
 
 def sync_shop_public_metrics(shop):
@@ -25,9 +25,9 @@ def sync_shop_public_metrics(shop):
     """
     delivered_orders = Orders.objects.filter(
         status="delivered",
-        lignes_commande__shop=shop
+        order_lines__shop=shop
     ).distinct()
-    delivered_items = LigneCommande.objects.filter(
+    delivered_items = OrderLine.objects.filter(
         shop=shop,
         order__status="delivered"
     )
@@ -35,7 +35,7 @@ def sync_shop_public_metrics(shop):
     total_orders = delivered_orders.count()
     number_sale = delivered_items.aggregate(s=Sum("quantity"))["s"] or 0
 
-    from apps.client.commentaires.models import ShopRatings
+    from apps.comments.models import ShopRatings
     reviews = ShopRatings.objects.filter(shop=shop)
     average_rating = reviews.aggregate(avg=Avg("rating"))["avg"] or 0
     number_of_reviews = reviews.count()
@@ -182,7 +182,7 @@ def update_shop_statistics(shop, date=None):
 
     # ===== RÉCUPÉRER LES COMMANDES VIA LIGNES COMMANDE =====
     # Les lignes de commande du shop pour ce jour
-    order_items = LigneCommande.objects.filter(
+    order_items = OrderLine.objects.filter(
         shop=shop, 
         order__order_date__date=date,
         order__status="delivered"
@@ -192,7 +192,7 @@ def update_shop_statistics(shop, date=None):
     orders = Orders.objects.filter(
         order_date__date=date,
         status="delivered",
-        lignes_commande__shop=shop
+        order_lines__shop=shop
     ).distinct()
 
     # ===== MÉTRIQUES DE VENTES =====
@@ -224,7 +224,7 @@ def update_shop_statistics(shop, date=None):
         top_category = Categories.objects.get(id=top_category_data["product__category"])
 
     # ===== SATISFACTION & RÉPUTATION =====
-    from apps.client.commentaires.models import ShopRatings
+    from apps.comments.models import ShopRatings
     shop_reviews = ShopRatings.objects.filter(shop=shop)
     shop_avg_rating = shop_reviews.aggregate(avg=Avg('rating'))['avg'] or 0
     shop_number_of_reviews = shop_reviews.count()

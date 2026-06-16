@@ -1,13 +1,13 @@
 from rest_framework import serializers
 from django.db.models import Avg, Count
-from apps.vendor.categories.models import Categories
-from apps.client.commentaires.models import ShopRatings
-from comptes.models import SellerAccount, ShopFollow
-from ecom_app.models import PayementMethod
+from apps.categories.models import Categories
+from apps.comments.models import ShopRatings
+from apps.accounts.models import SellerAccount, ShopFollow
+from apps.payments.models import PaymentMethod
 from .models import Shops
-from ecom_app.validators import validate_image_file
-from apps.vendor.produits.serializers import ProductSerializer
-from apps.vendor.produits.models import Products
+from ecommerce.validators import validate_image_file
+from apps.products.serializers import ProductSerializer
+from apps.products.models import Products
 
 
 class ShopSerializer(serializers.ModelSerializer):
@@ -151,7 +151,7 @@ class ShopCategorySerializer(serializers.ModelSerializer):
 
 class ShopPaymentMethodSerializer(serializers.ModelSerializer):
     class Meta:
-        model = PayementMethod
+        model = PaymentMethod
         fields = ['id', 'name', 'value', 'image']
 
 

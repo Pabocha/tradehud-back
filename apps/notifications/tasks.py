@@ -5,8 +5,8 @@ Tâches Celery pour envoyer les notifications en arrière-plan.
 
 from celery import shared_task
 from django.contrib.auth import get_user_model
-from ecom_app.notification_service import NotificationService
-from commandes.models import Orders
+from apps.notifications.service import NotificationService
+from apps.orders.models import Orders
 from django.utils import timezone
 import logging
 
@@ -30,7 +30,7 @@ def notify_new_message(room_id, sender_id, sender_name, preview=""):
         preview: Aperçu du message
     """
     try:
-        from chat.models import ChatRoom
+        from apps.chat.models import ChatRoom
         room = ChatRoom.objects.get(id=room_id)
         
         # Identifier les destinataires (membres de la room sauf l'expéditeur)
@@ -58,7 +58,7 @@ def notify_group_message(group_id, group_name, sender_id, sender_name, preview="
     Envoie une notification pour un message de groupe.
     """
     try:
-        from chat.models import ChatRoom
+        from apps.chat.models import ChatRoom
         group = ChatRoom.objects.get(id=group_id)
         
         for member in group.member.exclude(id=sender_id):

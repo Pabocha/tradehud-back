@@ -2,9 +2,9 @@ import json
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from .models import ChatRoom, ChatMessage
-from apps.vendor.produits.models import Products, ProductVariant
+from apps.products.models import Products, ProductVariant
 from .serializers import ChatMessageSerializer
-from comptes.models import CustomUser, OnlineUser
+from apps.accounts.models import CustomUser, OnlineUser
 
 class ChatConsumer(AsyncWebsocketConsumer):
 	def getUser(self, userId):

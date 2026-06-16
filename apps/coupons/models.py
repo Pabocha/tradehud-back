@@ -52,9 +52,9 @@ class Coupon(models.Model):
     shipping_discount_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     shipping_discount_percent = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     # Produits cibl?s	-20% sur les chaussures	R?duction seulement sur certains articles
-    target_categories = models.ManyToManyField('apps.categories.Categories', blank=True)
-    target_products = models.ManyToManyField('apps.products.Products', blank=True)
-    target_shops = models.ManyToManyField('apps.shops.Shops', blank=True)
+    target_categories = models.ManyToManyField('categories.Categories', blank=True)
+    target_products = models.ManyToManyField('products.Products', blank=True)
+    target_shops = models.ManyToManyField('shops.Shops', blank=True)
 
     def clean(self):
         super().clean()
@@ -93,7 +93,7 @@ class Coupon(models.Model):
 class CouponUsage(models.Model):
     coupon = models.ForeignKey(Coupon, on_delete=models.PROTECT, related_name='usages')
     user = models.ForeignKey(User, on_delete=models.PROTECT, related_name='coupon_usages')
-    order = models.ForeignKey('apps.orders.Orders', on_delete=models.PROTECT, related_name='coupon_usages')
+    order = models.ForeignKey('orders.Orders', on_delete=models.PROTECT, related_name='coupon_usages')
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2)
     used_at = models.DateTimeField(auto_now_add=True)
 

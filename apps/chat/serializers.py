@@ -2,8 +2,8 @@ from rest_framework import serializers
 from django.db.models import Q
 from django.db.models import F
 from django.utils.timezone import now
-from apps.vendor.produits.serializers import ProductListSerializer, ProductVariantSerializer
-from apps.vendor.produits.models import Quote
+from apps.products.serializers import ProductListSerializer, ProductVariantSerializer
+from apps.orders.models import Quote
 from .models import ChatRoom, ChatMessage
 
 

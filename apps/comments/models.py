@@ -9,7 +9,7 @@ User = get_user_model()
 class Ratings(models.Model):
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     product = models.ForeignKey(Products, on_delete=models.CASCADE, related_name="ratings")
-    order_item = models.ForeignKey("commandes.LigneCommande", on_delete=models.CASCADE, related_name="ratings")  
+    order_item = models.ForeignKey("orders.OrderLine", on_delete=models.CASCADE, related_name="ratings")  
     date_added = models.DateTimeField(auto_now_add=True)
     date_updated = models.DateTimeField(auto_now=True) 
     rating = models.FloatField(default=0.0)
@@ -26,8 +26,8 @@ class Ratings(models.Model):
 
 class ShopRatings(models.Model):
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    shop = models.ForeignKey("boutique.Shops", on_delete=models.CASCADE, related_name="ratings")
-    order = models.ForeignKey("commandes.Orders", on_delete=models.CASCADE, related_name="shop_ratings")
+    shop = models.ForeignKey("shops.Shops", on_delete=models.CASCADE, related_name="ratings")
+    order = models.ForeignKey("orders.Orders", on_delete=models.CASCADE, related_name="shop_ratings")
     date_added = models.DateTimeField(auto_now_add=True)
     date_updated = models.DateTimeField(auto_now=True)
     rating = models.FloatField(default=0.0)

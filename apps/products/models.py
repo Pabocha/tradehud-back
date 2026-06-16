@@ -1,4 +1,4 @@
-﻿﻿import os
+﻿import os
 from PIL import Image
 from django.db import models
 from django.db.models import Q, Sum
@@ -76,7 +76,7 @@ class Products(models.Model):
     name = models.CharField(max_length=255)
     base_price = MoneyField(max_digits=15, decimal_places=2, default_currency='XOF')
     brand = models.CharField(max_length=255, blank=True, null=True)
-    shop = models.ForeignKey(Shops, on_delete=models.CASCADE, related_name="product")
+    shop = models.ForeignKey('shops.Shops', on_delete=models.CASCADE, related_name="product")
     date_added = models.DateTimeField(auto_now_add=True)
     min_order_quantity = models.PositiveIntegerField(default=1)
     stock_quantity = models.PositiveIntegerField(blank=True, null=True) # Stock global (pour produits sans variantes)
@@ -85,7 +85,7 @@ class Products(models.Model):
     description = models.TextField()
     numbers_reviews = models.PositiveIntegerField(default=0)
     average_rating = models.FloatField(default=0.0)
-    category = models.ForeignKey('apps.vendor.categories.Categories', models.SET_NULL, null=True, blank=True)
+    category = models.ForeignKey('categories.Categories', models.SET_NULL, null=True, blank=True)
     country_origin = CountryField(blank=True, null=True)
     views_count = models.PositiveIntegerField(default=0)
     is_sponsored = models.BooleanField(default=False)
@@ -308,7 +308,7 @@ class RecentlyViewedProduct(models.Model):
         related_name='recently_viewed_products'
     )
     product = models.ForeignKey(
-        'apps.vendor.produits.Products',
+        'products.Products',
         on_delete=models.CASCADE,
         related_name='recent_views'
     )
@@ -352,7 +352,7 @@ class Banner(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        ordering = ['position', '-created_at']
+        ordering = ['priority', '-created_at']
 
     def __str__(self):
         return self.title

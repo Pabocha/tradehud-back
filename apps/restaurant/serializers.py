@@ -5,7 +5,7 @@ from .models import (
     OrderItem, Payment, Meal, MenuCategory, RestaurantCategory, RestaurantSettings
 )
 from .models import MealReview
-from ecom_app.validators import validate_image_file
+from ecommerce.validators import validate_image_file
 
 User = get_user_model()
 

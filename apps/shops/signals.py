@@ -1,7 +1,7 @@
 from django.dispatch import receiver
 from django.db.models.signals import post_save, pre_save
 from .models import Shops, DocumentShop
-from commandes.models import Orders
+from apps.orders.models import Orders
 
 
 @receiver(post_save, sender=DocumentShop)
@@ -38,7 +38,7 @@ def update_shop_stats_on_order(sender, instance, created, **kwargs):
     ✅ Déclenche seulement quand le statut est définitif (delivered/cancelled)
     ✅ Pas de mise à jour à chaque modification intermédiaire (pending, processing, shipped)
     """
-    from apps.vendor.boutique.tasks import recalculate_shop_statistics_range
+    from apps.shops.tasks import recalculate_shop_statistics_range
     from datetime import timedelta
     from django.utils.timezone import now
     

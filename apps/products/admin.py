@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (Products, GalerieImages, Colors, 
-                     ProductPriceTier, ProductPromotion, Quote, QuoteLine, 
+                     ProductPriceTier, ProductPromotion, 
                      AttributeValue, ProductVariant, Attribute, RecentlyViewedProduct)
 
 # Register your models here.
@@ -42,7 +42,4 @@ class RecentlyViewedProductAdmin(admin.ModelAdmin):
 
 admin.site.register(Attribute)
 admin.site.register(AttributeValue)
-admin.site.register(Quote)
-admin.site.register(QuoteLine)
- 
  

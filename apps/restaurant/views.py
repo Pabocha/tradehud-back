@@ -1,4 +1,4 @@
-﻿from rest_framework import viewsets, permissions, status, filters
+from rest_framework import viewsets, permissions, status, filters
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
@@ -21,6 +21,7 @@ from .serializers import (
 from .models import MealReview
 from .serializers import MealReviewSerializer
 from .permissions import IsOwnerOrReadOnly, IsRestaurantOwner
+from apps.comments.permissions import IsOwnerOrReadOnly
 
  
 # ============================================
@@ -703,12 +704,11 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 # ============================================
-# 7ï¸âƒ£  RestaurantReview ViewSet
+#   RestaurantReview ViewSet
 # ============================================
 class RestaurantReviewViewSet(viewsets.ModelViewSet):
     queryset = RestaurantReview.objects.select_related('user', 'restaurant', 'order')
     serializer_class = RestaurantReviewSerializer
-    from apps.client.commentaires.permissions import IsOwnerOrReadOnly
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['restaurant', 'rating']

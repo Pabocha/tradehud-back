@@ -23,10 +23,10 @@ class Orders(models.Model):
     customer = models.ForeignKey(User, on_delete=models.CASCADE)
     order_date = models.DateTimeField(auto_now_add=True)
     delivery_address = models.TextField()
-    total_amount = models.DecimalField(max_digits=15, decimal_places=2)
-    delivery_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_amount = MoneyField(max_digits=15, decimal_places=2, default_currency="XOF")
+    delivery_cost = MoneyField(max_digits=10, decimal_places=2, default_currency="XOF")
     status = models.CharField(max_length=50, choices=CHOICES_STATUS, default='pending')
-    payment_method = models.ManyToManyField('ecom_app.PayementMethod')
+    payment_method = models.ManyToManyField('payments.PaymentMethod')
     payment_status = models.CharField(
         max_length=20,
         choices=[
@@ -46,7 +46,7 @@ class Orders(models.Model):
     estimated_delivery_date = models.DateTimeField(blank=True, null=True)
     discount = models.DecimalField(max_digits=6, decimal_places=2, blank=True, null=True)
     applied_coupon = models.ForeignKey(
-        'ecom_app.Coupon',
+        'coupons.Coupon',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -78,7 +78,7 @@ class OrderLine(models.Model):
     order = models.ForeignKey(Orders, on_delete=models.CASCADE, related_name='order_lines')
 
     variant = models.ForeignKey(
-        'apps.vendor.produits.ProductVariant',
+        'products.ProductVariant',
         on_delete=models.PROTECT, 
         null=True
     )
@@ -90,7 +90,7 @@ class OrderLine(models.Model):
     )
 
     shop = models.ForeignKey(
-        'apps.vendor.boutique.Shops',
+        'shops.Shops',
         on_delete=models.PROTECT,
         null=True
     )
@@ -113,7 +113,7 @@ class OrderLine(models.Model):
 
 class Quote(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    shop = models.ForeignKey('apps.shops.Shops', on_delete=models.CASCADE)
+    shop = models.ForeignKey('shops.Shops', on_delete=models.CASCADE)
     status = models.CharField(
         max_length=20,
         choices=[
@@ -133,7 +133,7 @@ class Quote(models.Model):
     payment_link_expires_at = models.DateTimeField(null=True, blank=True)
     payment_link_sent_at = models.DateTimeField(null=True, blank=True)
     converted_order = models.ForeignKey(
-        "commandes.Orders",
+        "orders.Orders",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -151,7 +151,7 @@ class Quote(models.Model):
 class QuoteLine(models.Model):
     quote = models.ForeignKey(Quote, related_name="lines", on_delete=models.CASCADE)
     product = models.ForeignKey(Products, on_delete=models.CASCADE, null=True, blank=True)
-    variant = models.ForeignKey('apps.products.ProductVariant', on_delete=models.CASCADE, null=True, blank=True)
+    variant = models.ForeignKey('products.ProductVariant', on_delete=models.CASCADE, null=True, blank=True)
     quantity = models.PositiveIntegerField()
     negotiated_price = MoneyField(max_digits=15, decimal_places=2, default_currency='XOF')
     remarks = models.TextField(blank=True, null=True)

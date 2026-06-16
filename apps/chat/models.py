@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 import shortuuid
 from django.db.models import Count
-from apps.vendor.produits.models import Products, ProductVariant
+from apps.products.models import Products, ProductVariant
 
 User = get_user_model()
 

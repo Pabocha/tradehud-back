@@ -3,8 +3,8 @@ from django.db import transaction
 from rest_framework import decorators, permissions, status, viewsets
 from rest_framework.response import Response
 
-from ecom_app.models import PayementMethod
-from ecom_app.services.notifications import create_notification_if_allowed
+from apps.payments.models import PaymentMethod
+from apps.notifications.notifications import create_notification_if_allowed
 from .models import Orders
 from .serializers import OrderCreateSerializer, OrderSerializer
 
@@ -109,7 +109,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
 
         unique_method_ids = list(set(method_ids))
-        methods = PayementMethod.objects.filter(id__in=unique_method_ids)
+        methods = PaymentMethod.objects.filter(id__in=unique_method_ids)
         if methods.count() != len(unique_method_ids):
             return Response(
                 {"error": "Une ou plusieurs methodes de paiement sont invalides."},

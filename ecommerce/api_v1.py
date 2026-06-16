@@ -19,7 +19,7 @@ urlpatterns = [
     # ---- Client ----
     path('cart/', include('apps.carts.urls')),
     path('comments/', include('apps.comments.urls')),
-    path('contacts/', include('apps.contacts.urls')),
+    # path('contacts/', include('apps.contacts.urls')),
 
     # ---- Vendor ----
     path('products/', include('apps.products.urls')),

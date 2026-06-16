@@ -5,8 +5,8 @@ from rest_framework.exceptions import AuthenticationFailed
 from django.db.models import Value
 from django.db.models.functions import Replace
 from .models import SellerAccount, ShopFollow, UserSettings
-from apps.vendor.boutique.models import Shops
-from apps.vendor.produits.models import Products
+from apps.shops.models import Shops
+from apps.products.models import Products
 from djmoney.contrib.django_rest_framework.fields import MoneyField
 from django.contrib.auth.password_validation import validate_password
 

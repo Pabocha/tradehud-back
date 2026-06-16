@@ -1,11 +1,11 @@
 from django.db import models
 from django.conf import settings
-from apps.vendor.produits.models import Products  # ou ton modèle de produit
+from apps.products.models import Products  # ou ton modèle de produit
 from djmoney.models.fields import MoneyField
 
 class CartItem(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    variant = models.ForeignKey('apps.vendor.produits.ProductVariant', on_delete=models.PROTECT, null=True, blank=True)
+    variant = models.ForeignKey('products.ProductVariant', on_delete=models.PROTECT, null=True, blank=True)
     product = models.ForeignKey(Products, on_delete=models.CASCADE, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
     # Prix unitaire FIGÉ au moment de l'ajout au panier

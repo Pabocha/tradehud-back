@@ -5,7 +5,7 @@ from .serializers import RatingSerializer, ShopRatingSerializer
 from .permissions import IsOwnerOrReadOnly
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from commandes.models import Orders
+from apps.orders.models import Orders
 
 # Create your views here.
 

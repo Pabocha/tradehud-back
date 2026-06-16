@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework import serializers
 from djmoney.contrib.django_rest_framework.fields import MoneyField
-from ecom_app.models import CouponUsage
+from apps.coupons.models import CouponUsage
 from apps.coupons.service import apply_coupon
 from apps.notifications.notifications import create_notification_if_allowed
 from apps.carts.models import CartItem

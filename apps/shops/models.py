@@ -1,9 +1,8 @@
 from django.db import models
 from django.contrib.auth import get_user_model
-from ecom_app.models import PayementMethod
-from comptes.models import SellerAccount
+from apps.accounts.models import SellerAccount
 from django_countries.fields import CountryField
-from apps.vendor.categories.models import Categories
+from apps.categories.models import Categories
 
 User = get_user_model()
 
@@ -28,10 +27,10 @@ class Shops(models.Model):
     delivery_time_estimate = models.CharField(max_length=100, blank=True, null=True, help_text="Ex: 2-5 jours ouvrables")
     free_shipping = models.BooleanField(default=False)
     return_policy = models.TextField(blank=True, null=True)
-    categories = models.ManyToManyField('apps.vendor.categories.Categories', blank=True)
+    categories = models.ManyToManyField('categories.Categories', blank=True)
     status = models.CharField(max_length=50, choices=[('active', 'Active'), ('suspended', 'Suspended'), ('inactive', 'inactive')], default='inactive')
     is_deleted = models.BooleanField(default=False)  # soft delete
-    payment_method = models.ManyToManyField(PayementMethod, blank=True)
+    payment_method = models.ManyToManyField('payments.PaymentMethod', blank=True)
     total_follow = models.PositiveSmallIntegerField(default=0)
     number_sale = models.PositiveSmallIntegerField(default=0)
     number_of_reviews = models.PositiveIntegerField(default=0)
@@ -85,7 +84,7 @@ class ShopStatistics(models.Model):
 
     # Produits vedettes
     best_selling_product = models.ForeignKey(
-        "produits.Products", null=True, blank=True, on_delete=models.SET_NULL, related_name="best_in_statistics"
+        "products.Products", null=True, blank=True, on_delete=models.SET_NULL, related_name="best_in_statistics"
     )
 
     # Catégorie la plus performante

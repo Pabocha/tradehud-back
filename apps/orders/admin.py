@@ -9,4 +9,4 @@ class OrdersAdmin(admin.ModelAdmin):
     list_filter = ('status',)
     search_fields = ('customer', 'order_number')
 
-admin.site.register(LigneCommande)
+admin.site.register(OrderLine)

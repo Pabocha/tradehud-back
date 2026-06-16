@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 from .models import Categories, CategoryField, CategoryAttribute
-from ecom_app.validators import validate_image_file
+from ecommerce.validators import validate_image_file
 
 class CategoryAttributeSerializer(ModelSerializer):
     attribute_name = serializers.CharField(source="attribute.name", read_only=True)

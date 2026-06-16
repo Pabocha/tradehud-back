@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import CartItem
-from apps.vendor.produits.models import ProductVariant
+from apps.products.models import ProductVariant
 from djmoney.money import Money
 
 

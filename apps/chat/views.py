@@ -2,9 +2,9 @@ from django.shortcuts import render
 from rest_framework.viewsets import ModelViewSet
 from .serializers import ChatMessageSerializer, ChatRoomSerializer
 from .models import ChatRoom, ChatMessage
-from apps.vendor.produits.models import Products, ProductVariant
-from apps.vendor.boutique.models import Shops
-from comptes.models import UserProfile
+from apps.products.models import Products, ProductVariant
+from apps.shops.models import Shops
+from apps.accounts.models import UserProfile
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from rest_framework.views import APIView
@@ -16,7 +16,7 @@ from rest_framework.pagination import LimitOffsetPagination
 from django.db.models import Count, Q
 from django.db.models import F
 from django.contrib.auth import get_user_model
-from apps.vendor.produits.models import Quote
+from apps.orders.models import Quote
 from django.utils import timezone
 from datetime import timedelta
 # from .models import Messages

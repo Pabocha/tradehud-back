@@ -23,7 +23,7 @@ def update_product_average_rating(sender, instance, **kwargs):
 @receiver([post_save, post_delete], sender=ShopRatings)
 def update_shop_statistics_on_shop_rating_change(sender, instance, **kwargs):
     # Import local to avoid circular imports at app load.
-    from apps.vendor.boutique.views import update_shop_statistics
+    from apps.shops.views import update_shop_statistics
 
     if instance.shop:
         update_shop_statistics(instance.shop)

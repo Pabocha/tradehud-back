@@ -1,5 +1,7 @@
-﻿﻿import secrets
+﻿import secrets
 from decimal import Decimal
+
+from apps.orders.serializers import QuoteSerializer
 from .serializers import *
 from django.utils import timezone
 from django.db import transaction
@@ -21,7 +23,7 @@ from django.core.cache import cache
 from django.utils.dateparse import parse_datetime
 from datetime import datetime, timedelta
 from .services.recommendations import RecommendationService, parse_recommendation_params
-from apps.orders.models import Orders, OrderLine, Quote, QuoteLine
+from apps.orders.models import Orders, OrderLine, Quote
 
 
 def _sponsored_queryset(base_qs):
