@@ -80,11 +80,8 @@ class ProductFilter(django_filters.FilterSet):
                 )
             )
 
-            # Exclusion des vieux produits inactifs (score de 0).
-            # On garde le produit s'il a du score (score > 0) OU s'il est nouveau (créé il y a moins de 30 jours).
-            queryset = queryset.filter(
-                Q(popularity_score__gt=0) | Q(date_added__gte=thirty_days_ago)
-            )
+            # Uniquement les produits avec un score de popularité > 0
+            queryset = queryset.filter(popularity_score__gt=0)
 
             # Tri principal par score décroissant, puis secondaire par nouveauté pour classer les nouveaux
             return queryset.order_by('-popularity_score', '-date_added')
@@ -101,4 +98,4 @@ class ProductFilter(django_filters.FilterSet):
                 )
                 .order_by('?')
             )
-        return queryset
+        return queryset.none()
