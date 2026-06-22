@@ -69,7 +69,8 @@ class ProductFilter(django_filters.FilterSet):
                 variant__product=OuterRef('pk'),
             ).values('variant__product').annotate(count=Count('*')).values('count')[:1]
 
-            return queryset.annotate(
+            # Calcul du score de popularité
+            queryset = queryset.annotate(
                 popularity_score=(
                     Coalesce(Subquery(recent_direct_qty), 0) * 10
                     + Coalesce(Subquery(recent_variant_qty), 0) * 10
@@ -77,7 +78,16 @@ class ProductFilter(django_filters.FilterSet):
                     + (Coalesce(Subquery(cart_count), 0) + Coalesce(Subquery(cart_variant_count), 0)) * 3
                     + F('views_count')
                 )
-            ).order_by('-popularity_score')
+            )
+
+            # Exclusion des vieux produits inactifs (score de 0).
+            # On garde le produit s'il a du score (score > 0) OU s'il est nouveau (créé il y a moins de 30 jours).
+            queryset = queryset.filter(
+                Q(popularity_score__gt=0) | Q(date_added__gte=thirty_days_ago)
+            )
+
+            # Tri principal par score décroissant, puis secondaire par nouveauté pour classer les nouveaux
+            return queryset.order_by('-popularity_score', '-date_added')
         elif value == 'sponsored':
             now = timezone.now()
             return (

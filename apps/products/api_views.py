@@ -1,14 +1,11 @@
 from datetime import timedelta
-
 from django.db.models import Q as DQ, Sum, Case, When, IntegerField
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
 from elasticsearch_dsl import Q as ESQ
-
 from .documents import ProductDocument
 from .models import Products, ProductPromotion
 from .serializers import ProductListSerializer, ProductPromotionSerializer

@@ -1,4 +1,5 @@
-﻿import secrets
+import secrets
+from django_filters.rest_framework import DjangoFilterBackend
 from .filters import ProductFilter
 from .serializers import *
 from django.utils import timezone
@@ -49,7 +50,11 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
-    filterset_class = ProductFilter
+    def filter_queryset(self, queryset):
+        filterset = ProductFilter(data=self.request.query_params, queryset=queryset, request=self.request)
+        if filterset.is_valid():
+            return filterset.qs
+        return queryset
 
     def get_serializer_class(self):
         if self.action in [
