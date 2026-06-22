@@ -13,7 +13,11 @@ class Categories(MPTTModel):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     image = models.ImageField(upload_to="images/category", blank=True, null=True)
-    
+    icon_name = models.CharField(max_length=100, blank=True, null=True, help_text="Nom de l'icône Lucide (ex: ShoppingBag, Store)")
+    icon_color = models.CharField(max_length=7, blank=True, null=True, help_text="Code hexa de la couleur (ex: #FF5733)")
+    bg_icon = models.CharField(max_length=7, blank=True, null=True, help_text="Code hexa de la couleur (ex: #FF5733)")
+    badge = models.CharField(max_length=100, blank=True, null=True, help_text="Tendance")
+    badge_color = models.CharField(max_length=20, blank=True, null=True, help_text="bg du badge (ex: bg-orange-500")
     parent_category = TreeForeignKey(
         'self',
         on_delete=models.SET_NULL,
@@ -22,13 +26,13 @@ class Categories(MPTTModel):
         related_name='children'
     )
     tree = TreeManager()
-
     is_active = models.BooleanField(default=True)
     category_type = models.CharField(max_length=10, choices=CATEGORY_TYPE_CHOICES, default="product")
 
     class MPTTMeta:
-        parent_attr = 'parent_category'  # 👈 ceci règle l'erreur
+        parent_attr = 'parent_category' 
         order_insertion_by = ['name']
+        verbose_name_plural = "Categories"
 
 
     def __str__(self):

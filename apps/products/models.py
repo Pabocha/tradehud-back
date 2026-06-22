@@ -51,7 +51,7 @@ class Products(models.Model):
 
     def validate_image_file(image):
         max_size_mb = 5
-        allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif']
+        allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.jfif']
 
         # Taille du fichier (toujours disponible)
         if image.size > max_size_mb * 1024 * 1024:
@@ -63,7 +63,7 @@ class Products(models.Model):
         ext = os.path.splitext(image.name)[1].lower()
         if ext not in allowed_extensions:
             raise ValidationError(
-                "Format d'image non valide. Formats autorisés : JPEG, PNG, GIF."
+                "Format d'image non valide. Formats autorisés : JPEG, PNG, GIF, JFIF."
             )
 
         # âœ… Vérification réele du fichier image
@@ -278,7 +278,7 @@ class GalerieImages(models.Model):
     image = models.ImageField(upload_to='produits/galerie')
     position = models.IntegerField(default=0)
     date_added = models.DateTimeField(auto_now_add=True)
-    type_image = models.CharField(max_length=50, choices=[('principale', 'Principale'), ('supplementaire', 'SupplÃ©mentaire'), ('detail', 'DÃ©tail')], default='supplementaire')
+    type_image = models.CharField(max_length=50, choices=[('principale', 'Principale'), ('supplementaire', 'Supplémentaire'), ('detail', 'Détail')], default='supplementaire')
     alt_text = models.CharField(max_length=255, blank=True, null=True)
     description = models.CharField(max_length=255, blank=True, null=True)
     hash = models.CharField(max_length=64, editable=False)
@@ -336,23 +336,3 @@ class RecentlyViewedProduct(models.Model):
 
     def __str__(self):
         return f"{self.user or 'Anonymous'} a vu {self.product.name} ({self.view_count}x)"
-
-
-class Banner(models.Model):
-    title = models.CharField(max_length=100, blank=True)
-    description = models.TextField(blank=True)
-    image = models.ImageField(upload_to="banners/")
-    link = models.URLField(blank=True)
-    target = models.CharField(max_length=50, choices=[('shop', 'Boutique'), ('category', 'Catégorie'), ('product', 'Produit'), ('region', 'Région'), ('restaurant', 'Restaurant')], default='product')
-    type = models.CharField(max_length=50, choices=[('slider', 'Slider'), ('popup', 'Popup'), ('sidebar', 'Sidebar')], default='slider')
-    is_active = models.BooleanField(default=False)
-    priority = models.PositiveIntegerField(default=0)
-    start_date = models.DateTimeField(null=True, blank=True)
-    end_date = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        ordering = ['priority', '-created_at']
-
-    def __str__(self):
-        return self.title

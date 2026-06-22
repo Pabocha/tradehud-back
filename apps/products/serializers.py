@@ -319,6 +319,7 @@ class ProductSerializer(serializers.ModelSerializer):
     tags = TagListSerializerField(required=False)
     category_name = serializers.CharField(source='category.name', read_only=True)
     shop_name = serializers.CharField(source='shop.name', read_only=True)
+    shop_is_verified = serializers.BooleanField(source='shop.is_verifted', read_only=True)
     category = serializers.PrimaryKeyRelatedField(
         queryset=Categories.objects.all(),
     )
@@ -645,6 +646,7 @@ class ProductListSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(required=False, allow_null=True, validators=[validate_image_file])
     base_price = MoneyField(max_digits=15, decimal_places=2)
     shop_name = serializers.CharField(source='shop.name', read_only=True)
+    shop_is_verified = serializers.BooleanField(source='shop.is_verifted', read_only=True)
     seller_id = serializers.IntegerField(source='shop.owner_id', read_only=True)
     pricing_display = serializers.SerializerMethodField()
     total_stock = serializers.IntegerField(read_only=True)
@@ -666,6 +668,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             'numbers_reviews',
             'is_sponsored',
             'shop_name',
+            'shop_is_verified',
             'seller_id',
             'base_price_currency',
             'country_origin',
@@ -758,7 +761,3 @@ class ColorSerializer(serializers.ModelSerializer):
         model = Colors
         fields = '__all__'
 
-class BannerSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Banner
-        fields = '__all__'

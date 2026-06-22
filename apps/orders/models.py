@@ -80,13 +80,15 @@ class OrderLine(models.Model):
     variant = models.ForeignKey(
         'products.ProductVariant',
         on_delete=models.PROTECT, 
-        null=True
+        null=True,
+        related_name='order_lines'
     )
     product = models.ForeignKey(
         Products,
         on_delete=models.PROTECT,
         null=True,
-        blank=True
+        blank=True,
+        related_name='order_lines'
     )
 
     shop = models.ForeignKey(

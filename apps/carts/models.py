@@ -5,8 +5,8 @@ from djmoney.models.fields import MoneyField
 
 class CartItem(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    variant = models.ForeignKey('products.ProductVariant', on_delete=models.PROTECT, null=True, blank=True)
-    product = models.ForeignKey(Products, on_delete=models.CASCADE, null=True, blank=True)
+    variant = models.ForeignKey('products.ProductVariant', on_delete=models.PROTECT, null=True, blank=True, related_name='cart_items')
+    product = models.ForeignKey(Products, on_delete=models.CASCADE, null=True, blank=True, related_name='cart_items')
     quantity = models.PositiveIntegerField(default=1)
     # Prix unitaire FIGÉ au moment de l'ajout au panier
     unit_price = MoneyField(max_digits=15, decimal_places=2, default_currency='XOF', null=True, blank=True)
