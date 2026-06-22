@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from elasticsearch_dsl import Q as ESQ
 from .documents import ProductDocument
 from .models import Products, ProductPromotion
-from .serializers import ProductListSerializer, ProductPromotionSerializer
+from .serializers import ProductListSerializer, ProductPromotionListSerializer
 from .services.recommendations import RecommendationService, parse_recommendation_params
 
 
@@ -66,7 +66,7 @@ def _promotion_remaining_time(promo):
 class PromotionsView(APIView):
     def get(self, request):
         products = _active_promotions_queryset()
-        serializer = ProductPromotionSerializer(products, many=True, context={'request': request})
+        serializer = ProductPromotionListSerializer(products, many=True, context={'request': request})
         return Response(serializer.data)
 
 

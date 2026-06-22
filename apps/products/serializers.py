@@ -748,6 +748,49 @@ class RecentlyViewedProductSerializer(serializers.ModelSerializer):
         from apps.products.serializers import ProductSerializer
         return ProductSerializer(obj.product).data
 
+class ProductPromotionListSerializer(ProductListSerializer):
+    promotion_details = serializers.SerializerMethodField()
+    remaining_time = serializers.SerializerMethodField()
+
+    class Meta(ProductListSerializer.Meta):
+        fields = ProductListSerializer.Meta.fields + ['promotion_details', 'remaining_time']
+
+    def get_promotion_details(self, obj):
+        from django.utils.timezone import now
+        promo = obj.promotions.filter(
+            is_active=True,
+            start_at__lte=now(),
+            end_at__gte=now()
+        ).first()
+        if not promo:
+            return None
+        return {
+            'promo_price': float(promo.promo_price.amount),
+            'start_at': promo.start_at.isoformat(),
+            'end_at': promo.end_at.isoformat(),
+        }
+
+    def get_remaining_time(self, obj):
+        from django.utils.timezone import now
+        promo = obj.promotions.filter(
+            is_active=True,
+            start_at__lte=now(),
+            end_at__gte=now()
+        ).first()
+        if not promo:
+            return None
+        delta = promo.end_at - now()
+        days = delta.days
+        hours = delta.seconds // 3600
+        minutes = (delta.seconds % 3600) // 60
+        return {
+            'days': max(days, 0),
+            'hours': max(hours, 0),
+            'minutes': max(minutes, 0),
+            'total_seconds': max(int(delta.total_seconds()), 0),
+        }
+
+
 class GalerieImageSerializer(serializers.ModelSerializer):
     # Validate uploaded gallery image size/type
     image = serializers.ImageField(validators=[validate_image_file])
