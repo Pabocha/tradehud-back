@@ -227,6 +227,13 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='variants-list', permission_classes=[AllowAny])
+    def variants_list(self, request, pk=None):
+        product = self.get_object()
+        variants = product.variants.prefetch_related('attributes__attribute').all()
+        serializer = ProductVariantSerializer(variants, many=True, context={'request': request})
+        return Response(serializer.data)
     
 
      # ACTION : filtrage par pays et popularitÃ©

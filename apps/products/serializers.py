@@ -648,6 +648,7 @@ class ProductListSerializer(serializers.ModelSerializer):
     shop_name = serializers.CharField(source='shop.name', read_only=True)
     shop_is_verified = serializers.BooleanField(source='shop.is_verifted', read_only=True)
     seller_id = serializers.IntegerField(source='shop.owner_id', read_only=True)
+    has_variant = serializers.SerializerMethodField()
     pricing_display = serializers.SerializerMethodField()
     total_stock = serializers.IntegerField(read_only=True)
     country_origin = serializers.CharField(read_only=True)
@@ -667,6 +668,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             'average_rating',
             'numbers_reviews',
             'is_sponsored',
+            'has_variant',
             'shop_name',
             'shop_is_verified',
             'seller_id',
@@ -727,6 +729,9 @@ class ProductListSerializer(serializers.ModelSerializer):
             'price': base_price_amount,
             'currency': currency
         }
+
+    def get_has_variant(self, obj):
+        return obj.variants.exists()
 
 
 class ProductListWithCountrySerializer(ProductListSerializer):
