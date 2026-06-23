@@ -548,6 +548,80 @@ class ProductSerializer(serializers.ModelSerializer):
         return instance
 
 
+def build_variant_tree(product):
+    """Reconstruit un arbre de variantes à partir des variantes plates et de variant_structure."""
+    structure = product.variant_structure or []
+    if not structure:
+        return None
+
+    attr_codes = []
+    for item in structure:
+        if isinstance(item, dict):
+            code = item.get('code')
+            if code:
+                attr_codes.append(code)
+        elif isinstance(item, str):
+            attr_codes.append(item)
+
+    if not attr_codes:
+        return None
+
+    def pick_value(variant, code):
+        for av in variant.attributes.all():
+            if av.attribute.code == code:
+                return av
+        return None
+
+    def add_to_tree(tree, values, leaf_payload):
+        current = tree
+        for idx, val in enumerate(values):
+            if val is None:
+                return
+            key = val.value
+            if idx == len(values) - 1:
+                current.setdefault(key, []).append(leaf_payload)
+            else:
+                current = current.setdefault(key, {})
+
+    tree = {}
+    variants = product.variants.prefetch_related('attributes__attribute').all()
+    for variant in variants:
+        values = [pick_value(variant, code) for code in attr_codes]
+        leaf_payload = {
+            'id': variant.id,
+            'sku': variant.sku,
+            'stock': variant.stock_quantity,
+            'weight': variant.weight,
+            'price_override': (
+                float(variant.price_override.amount) if variant.price_override else None
+            ),
+            'price_override_currency': (
+                str(variant.price_override.currency) if variant.price_override else None
+            ),
+            'custom_attributes': variant.custom_attributes,
+            'attributes': AttributeValueSerializer(variant.attributes.all(), many=True).data,
+        }
+        add_to_tree(tree, values, leaf_payload)
+
+    def build_nodes(level, depth=0):
+        nodes = []
+        if depth >= len(attr_codes):
+            return nodes
+        for key, child in level.items():
+            node = {'value': key}
+            if depth == len(attr_codes) - 1:
+                node['children'] = child
+            else:
+                node['children'] = build_nodes(child, depth + 1)
+            nodes.append(node)
+        return nodes
+
+    return {
+        'structure': attr_codes,
+        'variants': build_nodes(tree, 0)
+    }
+
+
 class ProductDetailSerializer(ProductSerializer):
     """Serializer pour le détail produit (lecture)."""
     variant_tree = serializers.SerializerMethodField()
@@ -562,84 +636,7 @@ class ProductDetailSerializer(ProductSerializer):
         return fields
 
     def get_variant_tree(self, obj):
-        """
-        Reconstruit un arbre de variantes à partir des variantes plates
-        en utilisant obj.variant_structure.
-        """
-        structure = obj.variant_structure or []
-        if not structure:
-            return None
-
-        # Normalize structure to list of codes
-        attr_codes = []
-        for item in structure:
-            if isinstance(item, dict):
-                code = item.get('code')
-                if code:
-                    attr_codes.append(code)
-            elif isinstance(item, str):
-                attr_codes.append(item)
-
-        if not attr_codes:
-            return None
-
-        def pick_value(variant, code):
-            for av in variant.attributes.all():
-                if av.attribute.code == code:
-                    return av
-            return None
-
-        # Build nested tree
-        def add_to_tree(tree, values, leaf_payload):
-            current = tree
-            for idx, val in enumerate(values):
-                if val is None:
-                    return
-                key = val.value
-                if idx == len(values) - 1:
-                    current.setdefault(key, []).append(leaf_payload)
-                else:
-                    current = current.setdefault(key, {})
-
-        tree = {}
-        variants = obj.variants.prefetch_related('attributes__attribute').all()
-        for variant in variants:
-            values = [pick_value(variant, code) for code in attr_codes]
-            leaf_payload = {
-                'id': variant.id,
-                'sku': variant.sku,
-                'stock': variant.stock_quantity,
-                'weight': variant.weight,
-                'price_override': (
-                    float(variant.price_override.amount) if variant.price_override else None
-                ),
-                'price_override_currency': (
-                    str(variant.price_override.currency) if variant.price_override else None
-                ),
-                'custom_attributes': variant.custom_attributes,
-                'attributes': AttributeValueSerializer(variant.attributes.all(), many=True).data,
-            }
-            add_to_tree(tree, values, leaf_payload)
-
-        # Convert tree dict to structure list
-        def build_nodes(level, depth=0):
-            nodes = []
-            if depth >= len(attr_codes):
-                return nodes
-            for key, child in level.items():
-                node = {'value': key}
-                if depth == len(attr_codes) - 1:
-                    # leaf list
-                    node['children'] = child
-                else:
-                    node['children'] = build_nodes(child, depth + 1)
-                nodes.append(node)
-            return nodes
-
-        return {
-            'structure': attr_codes,
-            'variants': build_nodes(tree, 0)
-        }
+        return build_variant_tree(obj)
 
 
 class ProductListSerializer(serializers.ModelSerializer):
