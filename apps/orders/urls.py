@@ -1,12 +1,13 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import OrderViewSet, ClientQuoteViewSet, SellerQuoteViewSet
+from .views import OrderViewSet, ClientQuoteViewSet, SellerQuoteViewSet, ReturnRequestViewSet
 
 app_name = 'orders'
 
 router = DefaultRouter()
 router.register('quotes/client', ClientQuoteViewSet, basename='client-quote')
 router.register('quotes/seller', SellerQuoteViewSet, basename='seller-quote')
+router.register('returns', ReturnRequestViewSet, basename='return-request')
 
 urlpatterns = [
     # Orders - custom explicit URLs

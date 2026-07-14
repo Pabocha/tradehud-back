@@ -11,9 +11,12 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from apps.payments.models import PaymentMethod
 from apps.accounts.models import Address
-from .models import Orders, Quote, OrderLine
+from .models import Orders, Quote, OrderLine, ReturnRequest, ReturnItem, Refund
 from apps.notifications.notifications import create_notification_if_allowed
-from .serializers import OrderCreateSerializer, OrderSerializer, QuoteSerializer
+from .serializers import (
+    OrderCreateSerializer, OrderSerializer, QuoteSerializer,
+    ReturnRequestCreateSerializer, ReturnRequestSerializer, RefundSerializer,
+)
 from .services import is_quote_shop_owner, is_quote_participant, is_quote_expired, create_order_from_quote
 
 
@@ -404,9 +407,23 @@ class ClientQuoteViewSet(viewsets.ModelViewSet):
             return Response({'error': "Type d'adresse invalide pour la livraison."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            delivery_cost = Decimal(str(request.data.get('delivery_cost', 0) or 0))
+            from apps.shipping.services import calculate_shipping_cost
+            country_code = str(origin_address.country) if origin_address.country else ''
+            shop_ids = list(quote.lines.values_list('shop_id', flat=True).distinct())
+            subtotal = sum(
+                Decimal(str(getattr(line.negotiated_price, 'amount', line.negotiated_price))) * line.quantity
+                for line in quote.lines.all()
+            )
+            shipping_result = calculate_shipping_cost(
+                order_lines=OrderLine.objects.none(),
+                country_code=country_code,
+                method='standard',
+                shop_ids=shop_ids,
+                subtotal=subtotal,
+            )
+            delivery_cost = shipping_result['delivery_cost']
         except Exception:
-            return Response({'error': "Champ 'delivery_cost' invalide."}, status=status.HTTP_400_BAD_REQUEST)
+            delivery_cost = Decimal('0')
 
         try:
             order = create_order_from_quote(
@@ -507,9 +524,23 @@ class ClientQuoteViewSet(viewsets.ModelViewSet):
             return Response({'error': "Type d'adresse invalide pour la livraison."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            delivery_cost = Decimal(str(request.data.get('delivery_cost', 0) or 0))
+            from apps.shipping.services import calculate_shipping_cost
+            country_code = str(origin_address.country) if origin_address.country else ''
+            shop_ids = list(quote.lines.values_list('shop_id', flat=True).distinct())
+            subtotal = sum(
+                Decimal(str(getattr(line.negotiated_price, 'amount', line.negotiated_price))) * line.quantity
+                for line in quote.lines.all()
+            )
+            shipping_result = calculate_shipping_cost(
+                order_lines=OrderLine.objects.none(),
+                country_code=country_code,
+                method='standard',
+                shop_ids=shop_ids,
+                subtotal=subtotal,
+            )
+            delivery_cost = shipping_result['delivery_cost']
         except Exception:
-            return Response({'error': "Champ 'delivery_cost' invalide."}, status=status.HTTP_400_BAD_REQUEST)
+            delivery_cost = Decimal('0')
 
         try:
             order = create_order_from_quote(
@@ -681,3 +712,224 @@ class SellerQuoteViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class ReturnRequestViewSet(viewsets.ModelViewSet):
+    queryset = ReturnRequest.objects.select_related('order').prefetch_related('items__order_line__variant__product').all()
+    serializer_class = ReturnRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff or user.is_superuser:
+            return self.queryset
+        return self.queryset.filter(order__customer=user)
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return ReturnRequestCreateSerializer
+        return ReturnRequestSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        return_request = serializer.save()
+
+        try:
+            create_notification_if_allowed(
+                user=request.user,
+                notification_type="order",
+                title="Demande de retour",
+                message=f"Votre demande de retour pour la commande #{return_request.order.order_number} a été enregistrée.",
+            )
+        except Exception:
+            pass
+
+        return Response(
+            ReturnRequestSerializer(return_request).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        return_request = self.get_object()
+
+        if not (request.user.is_staff or request.user.is_superuser):
+            return Response({"error": "Non autorisé."}, status=status.HTTP_403_FORBIDDEN)
+
+        if return_request.status != 'pending':
+            return Response(
+                {"error": f"Statut invalide. Statut actuel : {return_request.status}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return_request.status = 'approved'
+        return_request.staff_note = request.data.get('staff_note', '')
+        return_request.save(update_fields=['status', 'staff_note', 'updated_at'])
+
+        try:
+            create_notification_if_allowed(
+                user=return_request.order.customer,
+                notification_type="order",
+                title="Retour approuvé",
+                message=f"Votre retour pour la commande #{return_request.order.order_number} a été approuvé.",
+            )
+        except Exception:
+            pass
+
+        return Response(ReturnRequestSerializer(return_request).data)
+
+    @action(detail=True, methods=['post'], url_path='reject')
+    def reject(self, request, pk=None):
+        return_request = self.get_object()
+
+        if not (request.user.is_staff or request.user.is_superuser):
+            return Response({"error": "Non autorisé."}, status=status.HTTP_403_FORBIDDEN)
+
+        if return_request.status != 'pending':
+            return Response(
+                {"error": f"Statut invalide. Statut actuel : {return_request.status}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return_request.status = 'rejected'
+        return_request.staff_note = request.data.get('staff_note', '')
+        return_request.save(update_fields=['status', 'staff_note', 'updated_at'])
+
+        try:
+            create_notification_if_allowed(
+                user=return_request.order.customer,
+                notification_type="order",
+                title="Retour rejeté",
+                message=f"Votre retour pour la commande #{return_request.order.order_number} a été rejeté.",
+            )
+        except Exception:
+            pass
+
+        return Response(ReturnRequestSerializer(return_request).data)
+
+    @action(detail=True, methods=['post'], url_path='complete')
+    def complete(self, request, pk=None):
+        return_request = self.get_object()
+
+        if not (request.user.is_staff or request.user.is_superuser):
+            return Response({"error": "Non autorisé."}, status=status.HTTP_403_FORBIDDEN)
+
+        if return_request.status not in ('approved', 'shipped_back', 'received'):
+            return Response(
+                {"error": f"Statut invalide. Statut actuel : {return_request.status}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            for item in return_request.items.select_related('order_line__variant', 'order_line__product').all():
+                if item.order_line.variant:
+                    item.order_line.variant.stock_quantity += item.quantity
+                    item.order_line.variant.save(update_fields=['stock_quantity'])
+
+                    try:
+                        from apps.products.services.stock import record_stock_movement
+                        record_stock_movement(
+                            variant=item.order_line.variant,
+                            quantity=item.quantity,
+                            movement_type='return',
+                            reason=f"Retour #{return_request.id} approuvé",
+                            reference_number=f"RETURN-{return_request.id}",
+                            performed_by=request.user,
+                        )
+                    except Exception:
+                        pass
+
+            return_request.status = 'completed'
+            return_request.save(update_fields=['status', 'updated_at'])
+
+            order = return_request.order
+            all_items_returned = all(
+                ri.quantity >= ri.order_line.quantity
+                for ri in return_request.items.all()
+            )
+            if all_items_returned:
+                order.status = 'returned'
+            else:
+                order.status = 'partially_returned'
+            order.save(update_fields=['status'])
+
+        try:
+            create_notification_if_allowed(
+                user=order.customer,
+                notification_type="order",
+                title="Retour terminé",
+                message=f"Votre retour pour la commande #{order.order_number} a été finalisé. Le stock a été réintégré.",
+            )
+        except Exception:
+            pass
+
+        return Response(ReturnRequestSerializer(return_request).data)
+
+    @action(detail=True, methods=['post'], url_path='refund')
+    def refund(self, request, pk=None):
+        return_request = self.get_object()
+
+        if not (request.user.is_staff or request.user.is_superuser):
+            return Response({"error": "Non autorisé."}, status=status.HTTP_403_FORBIDDEN)
+
+        if return_request.status != 'completed':
+            return Response(
+                {"error": "Le retour doit être finalisé avant de créer un remboursement."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        amount = request.data.get('amount')
+        method = request.data.get('method', 'original')
+
+        if not amount:
+            return Response({"error": "Champ 'amount' requis."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            amount = Decimal(str(amount))
+        except Exception:
+            return Response({"error": "Montant invalide."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if amount <= 0:
+            return Response({"error": "Le montant doit être supérieur à 0."}, status=status.HTTP_400_BAD_REQUEST)
+
+        total_refundable = return_request.total_refund_amount
+        already_refunded = sum(
+            r.amount for r in return_request.refunds.filter(status='completed')
+        )
+        remaining = total_refundable - already_refunded
+
+        if amount > remaining:
+            return Response(
+                {"error": f"Montant supérieur au remboursement restant ({remaining})."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            refund = Refund.objects.create(
+                return_request=return_request,
+                order=return_request.order,
+                amount=amount,
+                method=method,
+                status='processing',
+                processed_by=request.user,
+            )
+
+            order = return_request.order
+            if already_refunded + amount >= total_refundable:
+                order.payment_status = 'refunded'
+            else:
+                order.payment_status = 'partially_refunded'
+            order.save(update_fields=['payment_status'])
+
+        try:
+            create_notification_if_allowed(
+                user=order.customer,
+                notification_type="order",
+                title="Remboursement initié",
+                message=f"Un remboursement de {amount} a été initié pour la commande #{order.order_number}.",
+            )
+        except Exception:
+            pass
+
+        return Response(RefundSerializer(refund).data, status=status.HTTP_201_CREATED)

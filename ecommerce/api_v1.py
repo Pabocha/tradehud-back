@@ -41,4 +41,7 @@ urlpatterns = [
 
     # ---- Marketing ----
     path('marketing/', include('apps.marketing.urls')),
+
+    # ---- Shipping ----
+    path('shipping/', include('apps.shipping.urls')),
 ]

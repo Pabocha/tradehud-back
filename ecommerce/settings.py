@@ -96,6 +96,7 @@ LOCAL_APPS = [
     'apps.comments',        
     'apps.contacts',        
     'apps.chat',            
+    'apps.shipping',        
 ]
 
 # Fusion finale requise par Django

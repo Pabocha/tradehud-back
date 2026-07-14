@@ -503,7 +503,7 @@ Model : `PaymentMethod` (value, name, image)
 | Pas d'intégration paiement réel (Wave, Orange Money, Stripe...) | Le paiement est simulé (statut forcé à "paid") |
 | Favorites, Payments, Coupons, Marketing pas routés dans api_v1.py | Fonctionnalités developpées mais inaccessibles |
 | Pas de tests automatisés | Régression non détectée, maintenance difficile |
-| Related_name `lignecommande` erroné dans 5+ fichiers | Bugs runtime potentiels sur les stats commandes |
+
 
 ### Priorité Moyenne
 
