@@ -13,7 +13,7 @@ class UserAdmin(UserAdmin):
     readonly_fields = ('date_joined',)
     fieldsets = (
         (None, {'fields': ('password', 'email',  'type_user')}),
-        ('Personal info', {'fields': ('first_name', 'last_name', 'phone_number', 'full_address', 'latitude', 'longitude', 'gender', 'postal_code', 'country', 'date_of_birth')}),
+        ('Personal info', {'fields': ('first_name', 'last_name', 'phone_number', 'full_address', 'gender', 'country', 'date_of_birth')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser',  'groups', 'user_permissions')}),
         ('Seller account', {'fields': ('has_seller_account',)}),
         ('Important date', {'fields': ('last_login','date_joined' )})

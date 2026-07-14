@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework import serializers
 from djmoney.contrib.django_rest_framework.fields import MoneyField
+from apps.accounts.models import Address
 from apps.coupons.models import CouponUsage
 from apps.coupons.service import apply_coupon
 from apps.notifications.notifications import create_notification_if_allowed
@@ -13,7 +14,7 @@ from apps.products.models import ProductVariant, Products
 from .models import OrderLine, Orders, Quote, QuoteLine
 
 
-class LigneCommandeSerializer(serializers.ModelSerializer):
+class OrderLineSerializer(serializers.ModelSerializer):
     product_name = serializers.SerializerMethodField()
     variant_sku = serializers.CharField(source='variant.sku', read_only=True)
     shop_name = serializers.CharField(source='shop.name', read_only=True)
@@ -53,7 +54,7 @@ class LigneCommandeSerializer(serializers.ModelSerializer):
         return None
 
 
-class LigneCommandeCreateSerializer(serializers.Serializer):
+class OrderLineCreateSerializer(serializers.Serializer):
     variant = serializers.IntegerField(required=False)
     product = serializers.IntegerField(required=False)
     quantity = serializers.IntegerField(min_value=1)
@@ -69,7 +70,7 @@ class LigneCommandeCreateSerializer(serializers.Serializer):
 
 
 class OrderSerializer(serializers.ModelSerializer):
-    lignes_commande = serializers.SerializerMethodField()
+    order_lines = serializers.SerializerMethodField()
     total_amount = serializers.SerializerMethodField()
     is_discussed_order = serializers.SerializerMethodField()
     source_type = serializers.SerializerMethodField()
@@ -83,18 +84,21 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Orders
         fields = [
             'id', 'order_number', 'customer', 'customer_name', 'order_date',
-            'delivery_address', 'delivery_cost', 'discount', 'total_amount',
+            'shipping_first_name', 'shipping_last_name', 'shipping_phone_number',
+            'shipping_street_address', 'shipping_city', 'shipping_state_region',
+            'shipping_postal_code', 'shipping_country',
+            'delivery_cost', 'discount', 'total_amount',
             'status', 'payment_method', 'payment_method_name', 'payment_status',
             'payment_first_name', 'payment_last_name', 'payment_phone_number',
             'applied_coupon_code', 'preview_image_url', 'preview_product_name',
             'is_discussed_order', 'source_type', 'source_quote_id',
-            'lignes_commande'
+            'order_lines'
         ]
         read_only_fields = ['customer', 'order_number', 'status', 'payment_status']
 
     def get_preview_image_url(self, obj):
         request = self.context.get("request")
-        first_line = obj.lignes_commande.select_related("variant__product").first()
+        first_line = obj.order_lines.select_related("variant__product").first()
 
         if first_line:
             if first_line.variant and first_line.variant.product.image:
@@ -104,7 +108,7 @@ class OrderSerializer(serializers.ModelSerializer):
         return None
 
     def get_preview_product_name(self, obj):
-        first_line = obj.lignes_commande.select_related("variant__product").first()
+        first_line = obj.order_lines.select_related("variant__product").first()
         if first_line:
             if first_line.variant:
                 return first_line.variant.product.name
@@ -131,42 +135,53 @@ class OrderSerializer(serializers.ModelSerializer):
     def _get_filtered_lignes(self, obj):
         shop_id = self.context.get('shop_id')
         shop_ids = self.context.get('shop_ids')
-        lignes = obj.lignes_commande.all()
+        lines = obj.order_lines.all()
         if shop_id:
-            lignes = lignes.filter(shop_id=shop_id)
+            lines = lines.filter(shop_id=shop_id)
         elif shop_ids:
-            lignes = lignes.filter(shop_id__in=shop_ids)
-        return lignes
+            lines = lines.filter(shop_id__in=shop_ids)
+        return lines
 
     def get_total_amount(self, obj):
         # Pour le contexte vendeur (shop_id/shop_ids), retourner le montant des lignes filtrées.
         if self.context.get('shop_id') or self.context.get('shop_ids'):
-            lignes = self._get_filtered_lignes(obj)
-            return sum((line.total_price for line in lignes), Decimal('0.00'))
+            lines = self._get_filtered_lignes(obj)
+            return sum((line.total_price for line in lines), Decimal('0.00'))
         return obj.total_amount
 
-    def get_lignes_commande(self, obj):
-        lignes = self._get_filtered_lignes(obj)
-        return LigneCommandeSerializer(lignes, many=True, context=self.context).data
+    def get_order_lines(self, obj):
+        lines = self._get_filtered_lignes(obj)
+        return OrderLineSerializer(lines, many=True, context=self.context).data
 
 
 class OrderCreateSerializer(serializers.ModelSerializer):
-    lignes_commande = LigneCommandeCreateSerializer(many=True, write_only=True)
+    order_lines = OrderLineCreateSerializer(many=True, write_only=True)
     coupon_code = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    origin_address = serializers.PrimaryKeyRelatedField(queryset=Address.objects.all())
 
     class Meta:
         model = Orders
         fields = [
-            'delivery_address', 'delivery_cost', 'discount', 'coupon_code',
-            'lignes_commande'
+            'origin_address', 'delivery_cost', 'discount', 'coupon_code',
+            'order_lines'
         ]
 
-    def validate_lignes_commande(self, value):
+    def validate_order_lines(self, value):
         if not value:
             raise serializers.ValidationError("Au moins une ligne de commande est requise.")
         return value
 
     def validate(self, attrs):
+        request = self.context.get('request')
+        user = request.user if request else None
+
+        origin_address = attrs.get('origin_address')
+        if origin_address and user and origin_address.customer_id != user.id:
+            raise serializers.ValidationError({"origin_address": "Cette adresse ne vous appartient pas."})
+
+        if origin_address and origin_address.address_type not in ('shipping', 'both'):
+            raise serializers.ValidationError({"origin_address": "Type d'adresse invalide pour la livraison."})
+
         discount = attrs.get("discount")
         coupon_code = (attrs.get("coupon_code") or "").strip()
 
@@ -181,7 +196,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        lignes_data = validated_data.pop('lignes_commande')
+        lines_data = validated_data.pop('order_lines')
         coupon_code = (validated_data.pop('coupon_code', '') or '').strip()
         requested_discount = Decimal(str(validated_data.pop('discount', 0) or 0))
         request = self.context.get('request')
@@ -196,10 +211,10 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
             total_price = Decimal('0.00')
 
-            for ligne in lignes_data:
-                quantity = ligne['quantity']
-                variant_id = ligne.get('variant')
-                product_id = ligne.get('product')
+            for line in lines_data:
+                quantity = line['quantity']
+                variant_id = line.get('variant')
+                product_id = line.get('product')
 
                 if variant_id:
                     try:
@@ -293,7 +308,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                     coupon_result = apply_coupon(
                         user=user,
                         coupon_code=coupon_code,
-                        order_lines=order.lignes_commande.select_related("variant__product", "product").all(),
+                        order_lines=order.order_lines.select_related("variant__product", "product").all(),
                         subtotal=total_price,
                         delivery_cost=order.delivery_cost,
                     )

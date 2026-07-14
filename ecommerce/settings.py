@@ -70,6 +70,7 @@ THIRD_PARTY_APPS = [
     
     # ---- Database & Search Utilities ----
     'mptt',
+    'django_json_widget',
     'django_elasticsearch_dsl',
     'taggit',
     # 'modeltranslation',
@@ -81,6 +82,7 @@ LOCAL_APPS = [
     'apps.notifications',   
     'apps.coupons',
     'apps.favorites',
+    'apps.marketing',
     'apps.payments', 
     
     # ---- Shared Domain Apps (Client & Vendor) ----
@@ -152,7 +154,7 @@ SPECTACULAR_SETTINGS = {
 SIMPLE_JWT = {
   # It will work instead of the default serializer(TokenObtainPairSerializer).
   "TOKEN_OBTAIN_SERIALIZER": "accounts.serializers.MyTokenObtainPairSerializer",
-  "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+  "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
   "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
   "BLACKLIST_AFTER_ROTATION": True,
   # ...
@@ -162,6 +164,15 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:8000"
 ]
+
+# ---------------------------------------------------------------------------
+# Cookie-based Refresh Token
+# ---------------------------------------------------------------------------
+REFRESH_TOKEN_COOKIE_NAME = "refresh_token"
+REFRESH_TOKEN_COOKIE_PATH = "/"
+REFRESH_TOKEN_COOKIE_HTTPONLY = True
+REFRESH_TOKEN_COOKIE_SECURE = not DEBUG  # True en production (HTTPS)
+REFRESH_TOKEN_COOKIE_SAMESITE = "Lax"
 
 ROOT_URLCONF = 'ecommerce.urls'
 
@@ -181,22 +192,6 @@ TEMPLATES = [
     },
 ]
 
-# ELASTICSEARCH_DSL = {
-#     'default': {
-#         'hosts': 'https://elastic:KqKm=Xeh3f=rVSChk-L*@localhost:9200',
-#         'http_auth': ('elastic', 'KqKm=Xeh3f=rVSChk-L*'),
-#         'use_ssl': True,
-#         'verify_certs': False  # car certificat auto-signé
-#     },
-# }
-# ELASTICSEARCH_DSL = {
-#     'default': {
-#         'hosts': ['http://localhost:9200'],
-#         # 'basic_auth': ('elastic', 'KqKm=Xeh3f=rVSChk-L*'),
-#         # 'verify_certs': False,
-#         # 'ssl_show_warn': False,
-#     }
-# }
 
 ELASTICSEARCH_DSL = {
     'default': {

@@ -7,6 +7,9 @@ app_name = 'cart'
 router = DefaultRouter()
 router.register('', CartItemViewSet, basename='cart')
 
+cart_add = CartItemViewSet.as_view({'post': 'create'})
+
 urlpatterns = [
+    path('add/', cart_add, name='cart-add'),
     path('', include(router.urls)),
 ]

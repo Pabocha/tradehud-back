@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from apps.products.models import Products
 import uuid
 from djmoney.models.fields import MoneyField
+from django_countries.fields import CountryField
 
 User = get_user_model()
 
@@ -20,9 +21,39 @@ class Orders(models.Model):
         ('cancelled', 'Annulée')
         ]
     
+    CHOICES_SHIPPING_METHOD = [
+        ('standard', 'Livraison Standard'),
+        ('express', 'Livraison Express'),
+        ('pickup', 'Retrait en point relais / magasin'),
+    ]
+    
     customer = models.ForeignKey(User, on_delete=models.CASCADE)
     order_date = models.DateTimeField(auto_now_add=True)
-    delivery_address = models.TextField()
+    origin_address = models.ForeignKey(
+        'accounts.Address', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='orders_placed'
+    )
+
+    # 2. Les champs historiques "figés" pour la livraison (Copie de sécurité)
+    shipping_first_name = models.CharField(max_length=100)
+    shipping_last_name = models.CharField(max_length=100)
+    shipping_phone_number = models.CharField(max_length=30)
+    shipping_street_address = models.TextField()
+    shipping_city = models.CharField(max_length=100)
+    shipping_state_region = models.CharField(max_length=100, blank=True, null=True)
+    shipping_postal_code = models.CharField(max_length=20, blank=True, null=True)
+    shipping_country = CountryField(blank_label='(select country)')
+
+    # 3. Informations de suivi et transporteur (Ajoutées précédemment)
+    shipping_method = models.CharField(max_length=50, choices=CHOICES_SHIPPING_METHOD, default='standard')
+    carrier_name = models.CharField(max_length=100, blank=True, null=True)
+    tracking_number = models.CharField(max_length=100, blank=True, null=True)
+    tracking_url = models.URLField(max_length=500, blank=True, null=True)
+    delivery_notes = models.TextField(blank=True, null=True)
+
     total_amount = MoneyField(max_digits=15, decimal_places=2, default_currency="XOF")
     delivery_cost = MoneyField(max_digits=10, decimal_places=2, default_currency="XOF")
     status = models.CharField(max_length=50, choices=CHOICES_STATUS, default='pending')
@@ -63,6 +94,18 @@ class Orders(models.Model):
     def save(self, *args, **kwargs):
         if not self.order_number:
             self.order_number = str(uuid.uuid4())[:8].upper()
+            
+        # 2. Copie automatique des données de l'adresse d'origine (si présente et non encore copiée)
+        # On vérifie "not self.pk" pour ne le faire qu'à la création de la commande
+        if not self.pk and self.origin_address:
+            self.shipping_first_name = self.origin_address.first_name
+            self.shipping_last_name = self.origin_address.last_name
+            self.shipping_phone_number = self.origin_address.phone_number
+            self.shipping_street_address = self.origin_address.street_address
+            self.shipping_city = self.origin_address.city
+            self.shipping_state_region = self.origin_address.state_region
+            self.shipping_postal_code = self.origin_address.postal_code
+            self.shipping_country = self.origin_address.country
         super().save(*args, **kwargs) 
 
     def update_stock(self):
@@ -81,6 +124,7 @@ class OrderLine(models.Model):
         'products.ProductVariant',
         on_delete=models.PROTECT, 
         null=True,
+        blank = True,
         related_name='order_lines'
     )
     product = models.ForeignKey(
@@ -89,7 +133,7 @@ class OrderLine(models.Model):
         null=True,
         blank=True,
         related_name='order_lines'
-    )
+    ) 
 
     shop = models.ForeignKey(
         'shops.Shops',

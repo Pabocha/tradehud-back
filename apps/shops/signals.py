@@ -47,7 +47,7 @@ def update_shop_stats_on_order(sender, instance, created, **kwargs):
     new_status = instance.status
 
     # On récupère toutes les boutiques concernées par cette commande
-    shops = Shops.objects.filter(product__lignecommande__order=instance).distinct()
+    shops = Shops.objects.filter(product__order_lines__order=instance).distinct()
 
     for shop in shops:
         # ✅ DÉCLENCHER SEULEMENT SUR LES STATUTS DÉFINITIFS

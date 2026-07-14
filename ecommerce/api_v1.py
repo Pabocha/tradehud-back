@@ -1,15 +1,21 @@
 # ecommerce/api_v1.py
 from django.urls import path, include
-from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
-from apps.accounts.views import CustomTokenObtainPairView, LogoutView
+from rest_framework_simplejwt.views import TokenVerifyView
+from apps.accounts.auth_views import (
+    CustomTokenObtainPairView,
+    CookieTokenRefreshView,
+    CheckAuthView,
+    LogoutView,
+)
 
 app_name = 'api_v1'
 
 urlpatterns = [
     # ---- Authentication Tokens ----
     path('auth/token/', CustomTokenObtainPairView.as_view(), name='auth-token'),
-    path('auth/token/refresh/', TokenRefreshView.as_view(), name='auth-token-refresh'),
+    path('auth/token/refresh/', CookieTokenRefreshView.as_view(), name='auth-token-refresh'),
     path('auth/token/verify/', TokenVerifyView.as_view(), name='auth-token-verify'),
+    path('auth/check/', CheckAuthView.as_view(), name='auth-check'),
     path('auth/logout/', LogoutView.as_view(), name='auth-logout'),
 
     # ---- Core & Users ----

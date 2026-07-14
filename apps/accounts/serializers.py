@@ -4,7 +4,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.exceptions import AuthenticationFailed
 from django.db.models import Value
 from django.db.models.functions import Replace
-from .models import SellerAccount, ShopFollow, UserSettings
+from .models import SellerAccount, ShopFollow, UserSettings, Address
 from apps.shops.models import Shops
 from apps.products.models import Products
 from djmoney.contrib.django_rest_framework.fields import MoneyField
@@ -75,9 +75,8 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'email', 'first_name', 'last_name', 'phone_number', 
-                  'gender', 'date_of_birth', 'full_address', 'city', 'postal_code', 
-                  'country', 'latitude', 'longitude', 'type_user', 'is_active', 
-                  'date_joined', 'photo', 'password')
+                  'gender', 'date_of_birth', 'full_address', 'country',  
+                  'type_user', 'is_active', 'date_joined', 'photo', 'password')
 
     def get_photo(self, obj):
         request = self.context.get('request')
@@ -89,6 +88,12 @@ class UserSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(url) if request else url
         except Exception:
             return None
+        
+class AddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Address
+        fields = '__all__'
+        read_only_fields = ('customer',)  # Le client est défini automatiquement dans 
 
 class SellerAccountSerializer(serializers.ModelSerializer):
     class Meta:
@@ -99,32 +104,6 @@ class SellerAccountSerializer(serializers.ModelSerializer):
             'id_document': {'required': False, 'allow_null': True},
             'proof_of_address_document': {'required': False, 'allow_null': True},
         }
-
-# class ChangePasswordSerializer(serializers.Serializer):
-#     old_password = serializers.CharField(required=True)
-#     new_password1 = serializers.CharField(required=True)
-#     new_password2 = serializers.CharField(required=True)
-
-#     def validate_new_password(self, value):
-#         validate_password(value)
-#         return value
-
-# ðŸ”¹ Serializer simplifiÃ© pour afficher les produits
-class SimpleProductSerializer(serializers.ModelSerializer):
-    price = MoneyField(source='base_price', max_digits=15, decimal_places=2, read_only=True)
-    second_price = serializers.SerializerMethodField()
-    discount = serializers.SerializerMethodField()
-    class Meta:
-        model = Products
-        fields = ['id', 'name', 'price', 'second_price', 'discount', 'image', 'status'] 
-
-    def get_second_price(self, obj):
-        return None
-
-    def get_discount(self, obj):
-        return None
-
-
 
 # ðŸ”¹ Serializer principal
 class ShopFollowSerializer(serializers.ModelSerializer):
@@ -272,9 +251,21 @@ class ChangePasswordSerializer(serializers.Serializer):
             })
         return attrs
 
-
 class NotificationSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserSettings
         fields = ('notifications_enabled', 'notification_preferences')
 
+class SimpleProductSerializer(serializers.ModelSerializer):
+    price = MoneyField(source='base_price', max_digits=15, decimal_places=2, read_only=True)
+    second_price = serializers.SerializerMethodField()
+    discount = serializers.SerializerMethodField()
+    class Meta:
+        model = Products
+        fields = ['id', 'name', 'price', 'second_price', 'discount', 'image', 'status'] 
+
+    def get_second_price(self, obj):
+        return None
+
+    def get_discount(self, obj):
+        return None

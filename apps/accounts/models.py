@@ -65,11 +65,8 @@ class CustomUser(AbstractBaseUser):
     country = CountryField(blank_label='(select country)')
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES, default='M')
     date_of_birth = models.DateField(blank=True, null=True)
-    latitude = models.FloatField(blank=True, null=True)
-    longitude = models.FloatField(blank=True, null=True)
     full_address = models.CharField(max_length=255, blank=True, null=True)
     city = models.CharField(max_length=255, blank=True, null=True)
-    postal_code = models.CharField(max_length=6, blank=True, null=True)
     has_seller_account = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
@@ -94,6 +91,32 @@ class CustomUser(AbstractBaseUser):
 
     def has_module_perms(self, app_label):
         return True
+    
+class Address(models.Model):
+    CHOICES_TYPE = [
+        ('shipping', 'Livraison'),
+        ('billing', 'Facturation'),
+        ('both', 'Les deux'),
+    ]
+
+    customer = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='addresses')
+    address_type = models.CharField(max_length=20, choices=CHOICES_TYPE, default='shipping')
+    
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    phone_number = models.CharField(max_length=30)
+    
+    street_address = models.TextField(help_text="Rue, appartement, quartier, etc.")
+    city = models.CharField(max_length=100)
+    state_region = models.CharField(max_length=100, blank=True, null=True)
+    postal_code = models.CharField(max_length=20, blank=True, null=True)
+    country = CountryField(blank_label='(select country)')
+    
+    is_default = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} - {self.city}"
+
     
 class UserProfile(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
-from .models import Categories, CategoryField, CategoryAttribute
+from .models import Categories, CategoryAttribute
 from ecommerce.validators import validate_image_file
 
 class CategoryAttributeSerializer(ModelSerializer):
@@ -45,8 +45,8 @@ class CategorySerializer(ModelSerializer):
         model = Categories
         fields = ['id', 'name', 'image', 'children']
 
-class CategoryFieldSerializer(ModelSerializer):
-    class Meta:
-        model = CategoryField
-        fields = ['id', 'name', 'label', 'field_type', 'required', 'choices']
+# class CategoryFieldSerializer(ModelSerializer):
+#     class Meta:
+#         model = CategoryField
+#         fields = ['id', 'name', 'label', 'field_type', 'required', 'choices']
 

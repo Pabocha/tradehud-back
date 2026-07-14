@@ -104,7 +104,7 @@ class RatingViewSet(viewsets.ModelViewSet):
             )
 
         order_items = list(
-            order.lignes_commande.select_related("product", "variant__product", "shop").all()
+            order.order_lines.select_related("product", "variant__product", "shop").all()
         )
 
         products_by_id = {}

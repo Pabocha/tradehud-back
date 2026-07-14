@@ -98,7 +98,7 @@ def notify_order_confirmed(order_id):
             template_data={
                 'order_id': order.id,
                 'order_number': order.order_number,
-                'shop_name': order.lignes_commande.first().shop.name if order.lignes_commande.exists() else 'Boutique',
+                'shop_name': order.order_lines.first().shop.name if order.order_lines.exists() else 'Boutique',
                 'total_amount': str(order.total_order_price),
             }
         )
@@ -116,7 +116,7 @@ def notify_order_processing(order_id):
     """
     try:
         order = Orders.objects.get(id=order_id)
-        shop_name = order.lignes_commande.first().shop.name if order.lignes_commande.exists() else 'Boutique'
+        shop_name = order.order_lines.first().shop.name if order.order_lines.exists() else 'Boutique'
         
         NotificationService.send_notification(
             user=order.customer,

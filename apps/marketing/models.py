@@ -20,7 +20,8 @@ class Banner(models.Model):
     link = models.URLField(blank=True, help_text="Lien externe si applicable")
     tag = models.CharField(max_length=50, blank=True, null=True)
     cta = models.CharField(max_length=50, blank=True, null=True, help_text="Texte du bouton (ex: Acheter maintenant)")
-    
+    badge = models.CharField(max_length=100, blank=True, null=True, help_text="Tendance")
+    badge_color = models.CharField(max_length=20, blank=True, null=True, help_text="bg du badge (ex: bg-orange-500")
     target = models.CharField(max_length=50, choices=[('shop', 'Boutique'), ('category', 'Catégorie'), ('product', 'Produit'), ('country', 'Région'), ('restaurant', 'Restaurant')], default='product')
     
     # Liens vers les objets (A adapter selon tes modèles)

@@ -25,6 +25,11 @@ class Categories(MPTTModel):
         blank=True,
         related_name='children'
     )
+    fields_config = models.JSONField(
+        default=list, 
+        blank=True,
+        help_text="Format: [{'name': 'ram', 'label': 'Mémoire RAM', 'type': 'number'}, ...]"
+    )
     tree = TreeManager()
     is_active = models.BooleanField(default=True)
     category_type = models.CharField(max_length=10, choices=CATEGORY_TYPE_CHOICES, default="product")
@@ -33,36 +38,48 @@ class Categories(MPTTModel):
         parent_attr = 'parent_category' 
         order_insertion_by = ['name']
         verbose_name_plural = "Categories"
-
+        
+    def validate_product_data(self, data):
+        """
+        data est le dictionnaire envoyé par le front.
+        On vérifie si toutes les clés obligatoires de 'field_definitions' sont là.
+        """
+        for field in self.field_definitions:
+            if field['required'] and field['name'] not in data:
+                raise ValueError(f"Le champ {field['name']} est obligatoire.")
+        return True
+    
+    def is_leaf_node(self):
+        return self.get_descendant_count() == 0
 
     def __str__(self):
         type_label = "Produit" if self.category_type == "product" else "Boutique"
         return f"{self.name} ({type_label})"
 
-class CategoryField(models.Model):
-    FIELD_TYPES = [
-        ('text', 'Texte'),
-        ('number', 'Nombre'),
-        ('boolean', 'Booléen'),
-        ('choice', 'Choix'),
-        ('multichoice', 'Choix multiple'),
-        ('date', 'Date'),
-        ('datetime', 'Date et heure'),
-        ('textarea', 'Zone de texte'),
-        ('color', 'Couleur'),
-        # etc.
-    ]
+# class CategoryField(models.Model):
+#     FIELD_TYPES = [
+#         ('text', 'Texte'),
+#         ('number', 'Nombre'),
+#         ('boolean', 'Booléen'),
+#         ('choice', 'Choix'),
+#         ('multichoice', 'Choix multiple'),
+#         ('date', 'Date'),
+#         ('datetime', 'Date et heure'),
+#         ('textarea', 'Zone de texte'),
+#         ('color', 'Couleur'),
+#         # etc.
+#     ]
 
 
-    category = models.ForeignKey("categories.Categories", related_name="fields", on_delete=models.CASCADE)
-    name = models.CharField(max_length=100)
-    label = models.CharField(max_length=255)
-    field_type = models.CharField(max_length=20, choices=FIELD_TYPES)
-    required = models.BooleanField(default=False)
-    choices = models.JSONField(blank=True, null=True)  # Pour les champs de type "choice"
+#     category = models.ForeignKey("categories.Categories", related_name="fields", on_delete=models.CASCADE)
+#     name = models.CharField(max_length=100)
+#     label = models.CharField(max_length=255)
+#     field_type = models.CharField(max_length=20, choices=FIELD_TYPES)
+#     required = models.BooleanField(default=False)
+#     choices = models.JSONField(blank=True, null=True)  # Pour les champs de type "choice"
 
-    def __str__(self):
-        return f"{self.name} ({self.field_type})"
+#     def __str__(self):
+#         return f"{self.name} ({self.field_type})"
 
 class CategoryAttribute(models.Model):
 

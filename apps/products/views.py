@@ -335,63 +335,6 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer = ProductListWithCountrySerializer(qs, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['get', 'post'], url_path='images', parser_classes=[MultiPartParser, FormParser])
-    def images(self, request, pk=None):
-        """GET: liste les images de la galerie; POST: ajoute des images"""
-        if request.method == 'GET':
-            images = GalerieImages.objects.filter(product=pk)
-            serializer = GalerieImageSerializer(images, many=True, context={'request': request}).data
-            return Response(serializer)
-
-        # POST
-        product = get_object_or_404(Products, pk=pk)
-        files = request.FILES.getlist('images')
-        if not files:
-            return Response({'error': 'Aucune image reÃ§ue.'}, status=400)
-        errors = []
-        created = []
-        for file in files:
-            data = {'product': product.id, 'image': file}
-            serializer = GalerieImageSerializer(data=data, context={'request': request})
-            if serializer.is_valid():
-                serializer.save()
-                created.append(serializer.data)
-            else:
-                errors.append(serializer.errors)
-        if errors:
-            return Response({'message': 'Certaines images nâ€™ont pas pu Ãªtre enregistrÃ©es.', 'errors': errors}, status=400)
-        return Response({'message': 'Images ajoutÃ©es avec succÃ¨s.', 'data': created}, status=201)
-
-    @action(detail=True, methods=['delete'], url_path='delete-main-image')
-    def delete_main_image(self, request, pk=None):
-        product = get_object_or_404(Products, id=pk)
-        if not product.image:
-            return Response({"error": "Pas d'image principale Ã  supprimer"}, status=status.HTTP_400_BAD_REQUEST)
-        product.image.delete(save=False)
-        product.image = None
-        product.save()
-        # Remplacer par une image de la galerie si disponible
-        galerie_image = product.galerie_images.order_by('date_added').first()
-        if galerie_image:
-            product.image = galerie_image.image
-            product.save(update_fields=['image'])
-            # DÃ©tacher l'image de la galerie sans supprimer le fichier
-            galerie_image.image = None
-            galerie_image.save(update_fields=['image'])
-            galerie_image.delete()
-        return Response({"message": "Image principale supprimÃ©e et remplacÃ©e" if galerie_image else "Image principale supprimÃ©e"}, status=status.HTTP_200_OK)
-
-    @action(detail=False, methods=['post'], url_path='delete-gallery-images')
-    def delete_gallery_images(self, request):
-        ids = request.data.get("image_ids", [])
-        if not isinstance(ids, list):
-            return Response({"error": "image_ids must be a list"}, status=400)
-        qs = GalerieImages.objects.filter(id__in=ids)
-        for img in qs:
-            print("SUPPRESSION â†’", img.id, img.image.name)
-        deleted_count, _ = qs.delete()
-        return Response({"deleted": deleted_count}, status=200)
-
     @action(detail=True, methods=['get', 'post', 'patch', 'delete'], url_path='price-tiers', permission_classes=[IsAuthenticatedOrReadOnly])
     def price_tiers(self, request, pk=None):
         """
@@ -608,6 +551,65 @@ class ProductViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK
         )
     
+
+class ProductGalleryViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def _get_product(self, product_pk):
+        return get_object_or_404(Products, pk=product_pk)
+
+    def list(self, request, product_pk=None):
+        product = self._get_product(product_pk)
+        images = GalerieImages.objects.filter(product=product)
+        serializer = GalerieImageSerializer(images, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    def create(self, request, product_pk=None):
+        product = self._get_product(product_pk)
+        files = request.FILES.getlist('images')
+        if not files:
+            return Response({'error': 'Aucune image reçue.'}, status=400)
+        errors = []
+        created = []
+        for file in files:
+            data = {'product': product.id, 'image': file}
+            serializer = GalerieImageSerializer(data=data, context={'request': request})
+            if serializer.is_valid():
+                serializer.save()
+                created.append(serializer.data)
+            else:
+                errors.append(serializer.errors)
+        if errors:
+            return Response({'message': 'Certaines images n\'ont pas pu être enregistrées.', 'errors': errors}, status=400)
+        return Response({'message': 'Images ajoutées avec succès.', 'data': created}, status=201)
+
+    @action(detail=False, methods=['delete'], url_path='bulk-delete')
+    def bulk_delete(self, request, product_pk=None):
+        ids = request.data.get("image_ids", [])
+        if not isinstance(ids, list):
+            return Response({"error": "image_ids must be a list"}, status=400)
+        qs = GalerieImages.objects.filter(id__in=ids)
+        deleted_count, _ = qs.delete()
+        return Response({"deleted": deleted_count}, status=200)
+
+    @action(detail=False, methods=['delete'], url_path='delete-main-image')
+    def delete_main_image(self, request, product_pk=None):
+        product = self._get_product(product_pk)
+        if not product.image:
+            return Response({"error": "Pas d'image principale à supprimer"}, status=status.HTTP_400_BAD_REQUEST)
+        product.image.delete(save=False)
+        product.image = None
+        product.save()
+        galerie_image = product.galerie_images.order_by('date_added').first()
+        if galerie_image:
+            product.image = galerie_image.image
+            product.save(update_fields=['image'])
+            galerie_image.image = None
+            galerie_image.save(update_fields=['image'])
+            galerie_image.delete()
+        return Response({"message": "Image principale supprimée et remplacée" if galerie_image else "Image principale supprimée"}, status=status.HTTP_200_OK)
+
 
 class ProductAttributeValuesView(ListAPIView):
     serializer_class = AttributeValueSerializer

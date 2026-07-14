@@ -94,8 +94,8 @@ class Products(models.Model):
     is_active = models.BooleanField(default=True)
     tags = TaggableManager(blank=True)  # champ tags libre
     remarks = models.TextField(blank=True, null=True)
-    specific_fields = models.JSONField(default=dict, blank=True)
-    # Ordre des attributs de variantes pour reconstruire l'arbre cÃ´tÃ© frontend
+    attribute = models.JSONField(default=dict, blank=True)
+    # Ordre des attributs de variantes pour reconstruire l'arbre côté frontend
     variant_structure = models.JSONField(default=list, blank=True)
     objects = ProductQuerySet.as_manager()
 

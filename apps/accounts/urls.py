@@ -10,6 +10,7 @@ router = DefaultRouter()
 router.register('users', UserViewSet, basename='user')
 router.register('sellers', SellerAccountViewSet, basename='seller-account')
 router.register('shops', ShopFollowViewSet, basename='shop-follow')
+router.register('addresses', AddressViewSet, basename='address')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -21,6 +22,7 @@ urlpatterns = [
     path('update-user-settings/', update_user_settings, name='update-user-settings'),
     path('notification-settings/', notification_settings, name='notification-settings'),
     path('unread-counters/', unread_counters, name='unread-counters'),
+    
     
     # Action d'état du compte (On pourrait les préfixer pour éviter des conflits futurs)
     path('account/deactivate/', deactivate_account, name='deactivate_account'),

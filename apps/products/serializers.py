@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import *
 from djmoney.contrib.django_rest_framework.fields import MoneyField
-from apps.categories.models import Categories, CategoryField, CategoryAttribute
+from apps.categories.models import Categories, CategoryAttribute
 from django.utils import timezone
 import json
 from taggit.serializers import TagListSerializerField
@@ -324,7 +324,7 @@ class ProductSerializer(serializers.ModelSerializer):
         queryset=Categories.objects.all(),
     )
     total_stock = serializers.IntegerField(read_only=True)
-    specific_fields_display = serializers.SerializerMethodField()
+    # specific_fields_display = serializers.SerializerMethodField()
     # ===== NOUVEAUX CHAMPS DE PRIX =====
     price_tiers = serializers.SerializerMethodField()
     active_promotions = serializers.SerializerMethodField()
@@ -351,30 +351,30 @@ class ProductSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'sizes': 'Format JSON invalide.'})
 
         # Traitement de specific_fields si présent
-        if 'specific_fields' in data:
-            category = data.get('category') or self.initial_data.get('category')
-            if category:
-                fields = CategoryField.objects.filter(category_id=category)
-                label_to_name = {f.label: f.name for f in fields}
+        # if 'specific_fields' in data:
+        #     category = data.get('category') or self.initial_data.get('category')
+        #     if category:
+        #         fields = CategoryField.objects.filter(category_id=category)
+        #         label_to_name = {f.label: f.name for f in fields}
 
-                original = data['specific_fields']
-                if isinstance(original, str):
-                    try:
-                        original = json.loads(original)
-                    except Exception:
-                        raise serializers.ValidationError({
-                            'specific_fields': 'Format JSON invalide.'
-                        })
+        #         original = data['specific_fields']
+        #         if isinstance(original, str):
+        #             try:
+        #                 original = json.loads(original)
+        #             except Exception:
+        #                 raise serializers.ValidationError({
+        #                     'specific_fields': 'Format JSON invalide.'
+        #                 })
 
-                translated = {}
-                for label, value in original.items():
-                    key = label_to_name.get(label)
-                    if key:
-                        translated[key] = value
-                    else:
-                        translated[label] = value  # fallback si le label est inconnu
+        #         translated = {}
+        #         for label, value in original.items():
+        #             key = label_to_name.get(label)
+        #             if key:
+        #                 translated[key] = value
+        #             else:
+        #                 translated[label] = value  # fallback si le label est inconnu
 
-                data['specific_fields'] = translated
+        #         data['specific_fields'] = translated
 
         return super().to_internal_value(data)
     
@@ -666,6 +666,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             'numbers_reviews',
             'is_sponsored',
             'has_variant',
+            'shop',
             'shop_name',
             'shop_is_verified',
             'seller_id',

@@ -45,17 +45,6 @@ class ShopSerializer(serializers.ModelSerializer):
     def get_country_origin(self, obj):
         return str(obj.country_origin) 
 
-# class ProductSerializer(serializers.ModelSerializer):
-#     base_price = MoneyField(max_digits=15, decimal_places=2)
-#     country_origin = serializers.SerializerMethodField()
-
-#     def get_country_origin(self, obj):
-#         return str(obj.country_origin) if obj.country_origin else None
-
-#     class Meta:
-#         model = Products
-#         fields = '__all__'
-
 
 class ShopListSerializer(serializers.ModelSerializer):
     product = serializers.SerializerMethodField()

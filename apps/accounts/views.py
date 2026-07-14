@@ -2,16 +2,13 @@ from rest_framework import viewsets, status, views
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from .serializers import *
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.permissions import IsAuthenticated
 from .models import UserSettings, DeletionRequest, UserProfile
 from django.utils import timezone
 from django.conf import settings
 from django.core.mail import send_mail
 from .utils import anonymize_user, hard_delete_user
-from rest_framework_simplejwt.tokens import AccessToken
 from .serializers import UserSerializer
 from django.contrib.auth import get_user_model
 from apps.notifications.models import Notifications
@@ -19,8 +16,6 @@ from apps.chat.models import ChatMessage
 
 
 # Create your views here.
-
-from .throttles import LoginRateThrottle
 
 NOTIFICATION_PREFERENCE_KEYS = (
     "order",
@@ -63,49 +58,6 @@ def _normalize_notification_preferences(raw):
         prefs["all"] = all(prefs[key] for key in NOTIFICATION_PREFERENCE_KEYS)
     return prefs
 
-
-class CustomTokenObtainPairView(TokenObtainPairView):
-    serializer_class = MyTokenObtainPairSerializer
-    throttle_classes = [LoginRateThrottle]
-    
-    def post(self, request, *args, **kwargs):
-        # Déléguer au parent pour la génération standard de tokens
-        response = super().post(request, *args, **kwargs)
-        
-        # Si tout s'est bien passé, décoder le token pour récupérer l'utilisateur
-        if response.status_code == 200:
-            access = response.data.get('access')
-            if access:
-                User = get_user_model()
-                try:
-                    token_obj = AccessToken(access)
-                    user_id = token_obj['user_id']
-                    user = User.objects.get(id=user_id)
-
-                    # Mettre à jour la date de dernière connexion pour les connexions JWT
-                    user.last_login = timezone.now()
-                    user.save(update_fields=['last_login'])
-
-                    # sérialiser l'utilisateur et l'ajouter à la réponse
-                    response.data['user'] = UserSerializer(user).data
-                except Exception:
-                    # en cas de problème on ignore et on renvoie juste les tokens
-                    pass
-        return response
-
-class LogoutView(views.APIView):
-    def post(self, request):
-        try:
-            # On récupère le refresh token envoyé par le frontend
-            refresh_token = request.data["refresh_token"]
-            token = RefreshToken(refresh_token)
-            
-            # Cette méthode ajoute le token à la table BlacklistedToken en BDD
-            token.blacklist()
-
-            return Response({"message": "Déconnexion réussie"}, status=status.HTTP_205_RESET_CONTENT)
-        except Exception as e:
-            return Response({"error": "Token invalide"}, status=status.HTTP_400_BAD_REQUEST)
 
 class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
@@ -203,6 +155,16 @@ class UserViewSet(viewsets.ModelViewSet):
             )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class AddressViewSet(viewsets.ModelViewSet):
+    serializer_class = AddressSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Address.objects.filter(customer=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(customer=self.request.user)
 
         
 class SellerAccountViewSet(viewsets.ModelViewSet):
@@ -730,3 +692,4 @@ class ResetPasswordView(GenericAPIView):
             {"detail": "Mot de passe réinitialisé avec succès. Vous pouvez maintenant vous connecter."},
             status=status.HTTP_200_OK
         )
+
