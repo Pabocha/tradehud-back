@@ -37,5 +37,8 @@ urlpatterns = [
     path('orders/', include('apps.orders.urls')),
 
     # ---- Messaging (Tout est centralisé dans l'app) ----
-    path('messaging/', include('apps.chat.urls')), 
+    path('messaging/', include('apps.chat.urls')),
+
+    # ---- Marketing ----
+    path('marketing/', include('apps.marketing.urls')),
 ]

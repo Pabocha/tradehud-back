@@ -807,3 +807,46 @@ class ColorSerializer(serializers.ModelSerializer):
         model = Colors
         fields = '__all__'
 
+
+class StockMovementSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name', read_only=True, default=None)
+    variant_sku = serializers.CharField(source='variant.sku', read_only=True, default=None)
+    created_by_email = serializers.CharField(source='created_by.email', read_only=True, default=None)
+
+    class Meta:
+        model = StockMovement
+        fields = [
+            'id', 'product', 'variant', 'product_name', 'variant_sku',
+            'movement_type', 'quantity', 'previous_stock', 'new_stock',
+            'reference_type', 'reference_id', 'note',
+            'created_by', 'created_by_email', 'created_at',
+        ]
+        read_only_fields = ['id', 'previous_stock', 'new_stock', 'created_by', 'created_at']
+
+
+class StockAdjustmentSerializer(serializers.Serializer):
+    quantity = serializers.IntegerField(help_text="Positif = entrée, négatif = sortie")
+    movement_type = serializers.ChoiceField(
+        choices=['restock', 'adjustment', 'return'],
+        default='adjustment'
+    )
+    reference_id = serializers.CharField(required=False, allow_blank=True)
+    note = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_quantity(self, value):
+        if value == 0:
+            raise serializers.ValidationError("La quantité ne peut pas être 0.")
+        return value
+
+
+class ProductComparisonSerializer(serializers.ModelSerializer):
+    product_detail = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProductComparison
+        fields = ['id', 'product', 'added_at', 'product_detail']
+        read_only_fields = ['id', 'added_at']
+
+    def get_product_detail(self, obj):
+        return ProductListSerializer(obj.product, context=self.context).data
+

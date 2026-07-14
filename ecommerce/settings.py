@@ -131,6 +131,9 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    'DEFAULT_VERSIONING_CLASS': 'rest_framework.versioning.NamespaceVersioning',
+    'DEFAULT_VERSION': 'v1',
+    'ALLOWED_VERSIONS': ['v1'],
     # Explicit default throttle classes (empty → no global throttling)
     'DEFAULT_THROTTLE_CLASSES': [],
     # Throttling rates for specific scopes used by view-level throttles
@@ -371,5 +374,10 @@ CELERY_BEAT_SCHEDULE = {
     'cleanup-expired-otps': {
         'task': 'comptes.tasks.cleanup_expired_otps',
         'schedule': crontab(minute=15, hour='*/1'),
+    },
+    # Verification de la coherence du stock (quotidien à 4h du matin)
+    'verify-stock-consistency': {
+        'task': 'products.tasks.verify_stock_consistency_task',
+        'schedule': crontab(hour=4, minute=0),
     },
 }

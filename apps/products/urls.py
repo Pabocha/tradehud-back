@@ -13,6 +13,7 @@ app_name = 'products'
 
 router = DefaultRouter()
 router.register('recently-viewed', RecentlyViewedProductViewSet, basename='recently-viewed')
+router.register('comparison', ProductComparisonViewSet, basename='product-comparison')
 router.register('', ProductViewSet, basename='product')
 
 product_gallery_list = ProductGalleryViewSet.as_view({'get': 'list', 'post': 'create',})

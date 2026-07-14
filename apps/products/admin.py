@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (Products, GalerieImages, Colors, 
                      ProductPriceTier, ProductPromotion, 
-                     AttributeValue, ProductVariant, Attribute, RecentlyViewedProduct)
+                     AttributeValue, ProductVariant, Attribute, RecentlyViewedProduct,
+                     StockMovement, ProductComparison)
 
 # Register your models here.
 @admin.register(GalerieImages)
@@ -38,6 +39,18 @@ class ProductVariantAdmin(admin.ModelAdmin):
 @admin.register(RecentlyViewedProduct)
 class RecentlyViewedProductAdmin(admin.ModelAdmin):
     list_display = ('user', 'product', 'viewed_at')
+    search_fields = ('user__email', 'product__name')
+
+@admin.register(StockMovement)
+class StockMovementAdmin(admin.ModelAdmin):
+    list_display = ('product', 'variant', 'movement_type', 'quantity', 'previous_stock', 'new_stock', 'created_by', 'created_at')
+    list_filter = ('movement_type', 'created_at')
+    search_fields = ('product__name', 'variant__sku', 'reference_id')
+    readonly_fields = ('previous_stock', 'new_stock', 'created_at')
+
+@admin.register(ProductComparison)
+class ProductComparisonAdmin(admin.ModelAdmin):
+    list_display = ('user', 'session_key', 'product', 'added_at')
     search_fields = ('user__email', 'product__name')
 
 admin.site.register(Attribute)

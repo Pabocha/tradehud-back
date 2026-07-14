@@ -1,0 +1,155 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }} | {{ site_title }}{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+    .dashboard-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .kpi-card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.1); text-align: center; }
+    .kpi-card h3 { margin: 0 0 8px; font-size: 14px; color: #666; }
+    .kpi-card .value { font-size: 28px; font-weight: 700; color: #333; }
+    .kpi-card .sub { font-size: 12px; color: #999; margin-top: 4px; }
+    .kpi-card.revenue { border-left: 4px solid #4caf50; }
+    .kpi-card.orders { border-left: 4px solid #2196f3; }
+    .kpi-card.users { border-left: 4px solid #ff9800; }
+    .kpi-card.alert { border-left: 4px solid #f44336; }
+    .chart-row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .chart-card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+    .chart-card h2 { margin: 0 0 16px; font-size: 16px; }
+    .top-list { list-style: none; padding: 0; margin: 0; }
+    .top-list li { padding: 8px 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+    .top-list li:last-child { border: none; }
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .status-pending { background: #fff3e0; color: #e65100; }
+    .status-processing { background: #e3f2fd; color: #1565c0; }
+    .status-delivered { background: #e8f5e9; color: #2e7d32; }
+    .status-cancelled { background: #fce4ec; color: #c62828; }
+    @media (max-width: 768px) { .chart-row { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <!-- KPIs -->
+    <div class="dashboard-kpi">
+        <div class="kpi-card revenue">
+            <h3>Revenu total</h3>
+            <div class="value">{{ total_revenue|floatformat:0 }} XOF</div>
+            <div class="sub">Aujourd'hui : {{ revenue_today|floatformat:0 }} XOF</div>
+        </div>
+        <div class="kpi-card orders">
+            <h3>Commandes</h3>
+            <div class="value">{{ total_orders }}</div>
+            <div class="sub">{{ orders_pending }} en attente / {{ orders_processing }} en cours</div>
+        </div>
+        <div class="kpi-card users">
+            <h3>Utilisateurs</h3>
+            <div class="value">{{ total_users }}</div>
+            <div class="sub">+{{ users_30d }} ce mois</div>
+        </div>
+        <div class="kpi-card">
+            <h3>Produits actifs</h3>
+            <div class="value">{{ total_products }}</div>
+            <div class="sub">{{ total_shops }} boutiques actives</div>
+        </div>
+        <div class="kpi-card alert">
+            <h3>Alertes</h3>
+            <div class="value">{{ low_stock_products }}</div>
+            <div class="sub">produits en stock bas (&#8804;5)</div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="chart-row">
+        <div class="chart-card">
+            <h2>Commandes (7 derniers jours)</h2>
+            <canvas id="ordersChart" height="100"></canvas>
+        </div>
+        <div class="chart-card">
+            <h2>Répartition des statuts</h2>
+            <canvas id="statusChart" height="200"></canvas>
+        </div>
+    </div>
+
+    <!-- Top shops -->
+    <div class="chart-row">
+        <div class="chart-card">
+            <h2>Top boutiques (30j)</h2>
+            <ul class="top-list">
+                {% for shop in top_shops %}
+                <li>
+                    <span>{{ shop.order_lines__shop__name|default:"N/A" }}</span>
+                    <span><strong>{{ shop.revenue|floatformat:0 }} XOF</strong> ({{ shop.order_count }} cmdes)</span>
+                </li>
+                {% empty %}
+                <li>Aucune donnée</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="chart-card">
+            <h2>Commandes livrées</h2>
+            <div style="text-align:center; padding: 20px;">
+                <div style="font-size:48px; font-weight:700; color:#4caf50;">{{ orders_delivered }}</div>
+                <div style="color:#999;">commandes livrées au total</div>
+            </div>
+            <h2 style="margin-top:16px;">Revenu 30 jours</h2>
+            <div style="text-align:center; padding: 20px;">
+                <div style="font-size:24px; font-weight:700; color:#333;">{{ revenue_30d|floatformat:0 }} XOF</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Orders by day chart
+    var ordersCtx = document.getElementById('ordersChart').getContext('2d');
+    new Chart(ordersCtx, {
+        type: 'bar',
+        data: {
+            labels: [{% for item in orders_by_day %}'{{ item.day }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+            datasets: [{
+                label: 'Commandes',
+                data: [{% for item in orders_by_day %}{{ item.count }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+                backgroundColor: 'rgba(33, 150, 243, 0.7)',
+                borderColor: 'rgba(33, 150, 243, 1)',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+
+    // Status distribution chart
+    var statusCtx = document.getElementById('statusChart').getContext('2d');
+    var statusColors = {
+        'pending': '#ff9800', 'processing': '#2196f3', 'shipped': '#9c27b0',
+        'in_transit': '#673ab7', 'delivered': '#4caf50', 'cancelled': '#f44336'
+    };
+    var statusData = [{% for item in status_distribution %}{ label: '{{ item.status }}', value: {{ item.count }} }{% if not forloop.last %}, {% endif %}{% endfor %}];
+    new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: statusData.map(function(d) { return d.label; }),
+            datasets: [{
+                data: statusData.map(function(d) { return d.value; }),
+                backgroundColor: statusData.map(function(d) { return statusColors[d.label] || '#999'; })
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+});
+</script>
+{% endblock %}
+
+{% block sidebar %}
+{# Keep default admin sidebar #}
+{{ block.super }}
+{% endblock %}

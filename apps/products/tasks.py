@@ -1,54 +1,75 @@
-import logging
-
 from celery import shared_task
-from django.utils import timezone
-
-from .models import Products, ProductPromotion, Quote
-
-logger = logging.getLogger(__name__)
+from django.db.models import Sum
+from apps.notifications.notifications import create_notification_if_allowed
 
 
 @shared_task
-def deactivate_expired_sponsored_products():
+def verify_stock_consistency_task():
     """
-    Desactive le sponsoring des produits dont la date de fin est depassee.
+    Tâche Celery pour vérifier la cohérence du stock.
+    Compare stock_quantity (cache) vs somme des StockMovement (source de vérité).
     """
-    now = timezone.now()
-    updated = Products.objects.filter(
-        is_sponsored=True,
-        sponsored_end__isnull=False,
-        sponsored_end__lte=now,
-    ).update(is_sponsored=False)
+    from apps.products.models import Products, ProductVariant, StockMovement
 
-    logger.info("Sponsored products deactivated: %s", updated)
-    return {"status": "success", "updated": updated}
+    inconsistencies = []
 
+    for product in Products.objects.filter(is_active=True).iterator():
+        if product.variants.exists():
+            continue
+        if product.stock_quantity is None:
+            continue
 
-@shared_task
-def deactivate_expired_promotions():
-    """
-    Desactive les promotions actives dont la date de fin est depassee.
-    """
-    now = timezone.now()
-    updated = ProductPromotion.objects.filter(
-        is_active=True,
-        end_at__lte=now,
-    ).update(is_active=False)
+        total_from_movements = (
+            StockMovement.objects
+            .filter(product=product)
+            .aggregate(total=Sum('quantity'))['total'] or 0
+        )
 
-    logger.info("Product promotions deactivated: %s", updated)
-    return {"status": "success", "updated": updated}
+        if total_from_movements != product.stock_quantity:
+            inconsistencies.append({
+                'type': 'product',
+                'id': product.id,
+                'name': str(product),
+                'cached_stock': product.stock_quantity,
+                'movement_stock': total_from_movements,
+            })
 
+    for variant in ProductVariant.objects.select_related('product').filter(
+        product__is_active=True
+    ).iterator():
+        total_from_movements = (
+            StockMovement.objects
+            .filter(variant=variant)
+            .aggregate(total=Sum('quantity'))['total'] or 0
+        )
 
-@shared_task
-def expire_quotes():
-    """
-    Passe les quotes expirees au statut 'expired'.
-    """
-    now = timezone.now()
-    updated = Quote.objects.filter(
-        expires_at__lte=now,
-        status__in=["draft", "sent", "countered", "accepted"],
-    ).update(status="expired", updated_at=now)
+        if total_from_movements != variant.stock_quantity:
+            inconsistencies.append({
+                'type': 'variant',
+                'id': variant.id,
+                'name': f"{variant.product.name} [{variant.sku}]",
+                'cached_stock': variant.stock_quantity,
+                'movement_stock': total_from_movements,
+            })
 
-    logger.info("Quotes expired: %s", updated)
-    return {"status": "success", "updated": updated}
+    if inconsistencies:
+        try:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            staff_users = User.objects.filter(is_staff=True)
+            for user in staff_users:
+                create_notification_if_allowed(
+                    user=user,
+                    notification_type='product',
+                    title='Incohérence de stock détectée',
+                    message=f'{len(inconsistencies)} produit(s)/variante(s) avec stock incohérent.',
+                )
+        except Exception:
+            pass
+
+    return {
+        'checked_products': Products.objects.filter(is_active=True).count(),
+        'checked_variants': ProductVariant.objects.filter(product__is_active=True).count(),
+        'inconsistencies_count': len(inconsistencies),
+        'inconsistencies': inconsistencies,
+    }

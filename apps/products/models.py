@@ -110,7 +110,23 @@ class Products(models.Model):
         )
 
     def get_unit_price(self, quantity=1):
-        # 1. Promo active
+        # 1. Flash Sale active
+        from apps.marketing.models import FlashSale
+        now_ts = now()
+        flash_sales = FlashSale.objects.filter(
+            is_active=True, start_at__lte=now_ts, end_at__gte=now_ts
+        )
+        for fs in flash_sales:
+            if fs.target_type == 'all':
+                return fs.compute_discounted_price(self.base_price)
+            if fs.target_type == 'product' and fs.target_products.filter(id=self.id).exists():
+                return fs.compute_discounted_price(self.base_price)
+            if fs.target_type == 'category' and self.category and fs.target_categories.filter(id=self.category_id).exists():
+                return fs.compute_discounted_price(self.base_price)
+            if fs.target_type == 'shop' and fs.target_shops.filter(id=self.shop_id).exists():
+                return fs.compute_discounted_price(self.base_price)
+
+        # 2. Promo active
         promo = self.promotions.filter(
             is_active=True,
             start_at__lte=now(),
@@ -119,7 +135,7 @@ class Products(models.Model):
         if promo:
             return promo.promo_price
 
-        # 2. Prix par palier
+        # 3. Prix par palier
         tier = (
             self.price_tiers
             .filter(
@@ -134,7 +150,7 @@ class Products(models.Model):
         if tier:
             return tier.price
 
-        # 3. Prix normal
+        # 4. Prix normal
         return self.base_price
 
     class Meta:
@@ -238,12 +254,37 @@ class ProductVariant(models.Model):
         return product.base_price
     
     def get_unit_price(self, quantity=1):
-        # 1. Prix spÃ©cifique Ã  la variante
-        if self.price_override:
-            return self.price_override 
+        # 1. Flash Sale active
+        from apps.marketing.models import FlashSale
+        now_ts = now()
+        product = self.product
+        flash_sales = FlashSale.objects.filter(
+            is_active=True, start_at__lte=now_ts, end_at__gte=now_ts
+        )
+        for fs in flash_sales:
+            if fs.target_type == 'all':
+                if self.price_override:
+                    return fs.compute_discounted_price(self.price_override)
+                return fs.compute_discounted_price(product.base_price)
+            if fs.target_type == 'product' and fs.target_products.filter(id=product.id).exists():
+                if self.price_override:
+                    return fs.compute_discounted_price(self.price_override)
+                return fs.compute_discounted_price(product.base_price)
+            if fs.target_type == 'category' and product.category and fs.target_categories.filter(id=product.category_id).exists():
+                if self.price_override:
+                    return fs.compute_discounted_price(self.price_override)
+                return fs.compute_discounted_price(product.base_price)
+            if fs.target_type == 'shop' and fs.target_shops.filter(id=product.shop_id).exists():
+                if self.price_override:
+                    return fs.compute_discounted_price(self.price_override)
+                return fs.compute_discounted_price(product.base_price)
 
-        # 2. Fallback produit
-        return self.product.get_unit_price(quantity)
+        # 2. Prix spécifique à la variante
+        if self.price_override:
+            return self.price_override
+
+        # 3. Fallback produit
+        return product.get_unit_price(quantity)
     def save(self, *args, **kwargs):
         # GÃ©nÃ©rer un SKU si non fourni
         if not self.sku:
@@ -336,3 +377,68 @@ class RecentlyViewedProduct(models.Model):
 
     def __str__(self):
         return f"{self.user or 'Anonymous'} a vu {self.product.name} ({self.view_count}x)"
+
+
+class StockMovement(models.Model):
+    MOVEMENT_TYPES = [
+        ('sale', 'Vente'),
+        ('restock', 'Réapprovisionnement'),
+        ('adjustment', 'Ajustement manuel'),
+        ('return', 'Retour client'),
+        ('cancelled', 'Commande annulée'),
+    ]
+
+    product = models.ForeignKey(Products, on_delete=models.CASCADE, related_name='stock_movements', null=True, blank=True)
+    variant = models.ForeignKey('ProductVariant', on_delete=models.CASCADE, related_name='stock_movements', null=True, blank=True)
+    movement_type = models.CharField(max_length=20, choices=MOVEMENT_TYPES)
+    quantity = models.IntegerField(help_text="Positif = entrée, négatif = sortie")
+    previous_stock = models.PositiveIntegerField(help_text="Stock avant le mouvement")
+    new_stock = models.PositiveIntegerField(help_text="Stock après le mouvement")
+    reference_type = models.CharField(max_length=20, blank=True, null=True, help_text="'order', 'manual', 'system'")
+    reference_id = models.CharField(max_length=100, blank=True, null=True, help_text="Numéro de commande ou raison")
+    note = models.TextField(blank=True, null=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='stock_movements'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['product', 'created_at']),
+            models.Index(fields=['variant', 'created_at']),
+            models.Index(fields=['movement_type']),
+        ]
+
+    def __str__(self):
+        target = self.variant or self.product
+        return f"[{self.movement_type}] {target} x{self.quantity} ({self.previous_stock} → {self.new_stock})"
+
+
+class ProductComparison(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        null=True, blank=True, related_name='comparisons'
+    )
+    session_key = models.CharField(max_length=100, null=True, blank=True)
+    product = models.ForeignKey(Products, on_delete=models.CASCADE, related_name='compared_by')
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-added_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'product'],
+                condition=models.Q(user__isnull=False),
+                name='uniq_comparison_user_product',
+            ),
+            models.UniqueConstraint(
+                fields=['session_key', 'product'],
+                condition=models.Q(user__isnull=True),
+                name='uniq_comparison_session_product',
+            ),
+        ]
+
+    def __str__(self):
+        return f"Comparison: {self.user or self.session_key} - {self.product.name}"

@@ -16,6 +16,7 @@ from django.db.models import Q as DQ, Case, When, IntegerField, F
 from rest_framework.decorators import action, api_view
 from drf_spectacular.utils import extend_schema, OpenApiExample
 from django.utils.dateparse import parse_datetime
+from .models import StockMovement, ProductComparison
 
 
 class TenPerPagePagination(PageNumberPagination):
@@ -766,7 +767,7 @@ class RecentlyViewedProductViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def most_viewed(self, request):
-        """Retourne les produits les plus consultÃ©s par l'utilisateur"""
+        """Retourne les produits les plus consultés par l'utilisateur"""
         user = request.user
         session_key = request.session.session_key
 
@@ -779,6 +780,111 @@ class RecentlyViewedProductViewSet(viewsets.ModelViewSet):
         top = qs.order_by('-view_count')[:10]
         serializer = self.get_serializer(top, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get', 'post'], url_path='stock-movements', permission_classes=[IsAuthenticated])
+    def stock_movements(self, request, pk=None):
+        product = self.get_object()
+
+        if request.method == 'GET':
+            variant_id = request.query_params.get('variant_id')
+            movements = StockMovement.objects.filter(product=product)
+            if variant_id:
+                movements = movements.filter(variant_id=variant_id)
+            movements = movements.select_related('variant', 'created_by')[:50]
+            serializer = StockMovementSerializer(movements, many=True)
+            return Response(serializer.data)
+
+        serializer = StockAdjustmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        from .services.stock import record_stock_movement
+        try:
+            movement = record_stock_movement(
+                product=product,
+                movement_type=data['movement_type'],
+                quantity=data['quantity'],
+                reference_type='manual',
+                reference_id=data.get('reference_id'),
+                note=data.get('note'),
+                created_by=request.user,
+            )
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(StockMovementSerializer(movement).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'], url_path='comparison-data', permission_classes=[AllowAny])
+    def comparison_data(self, request, pk=None):
+        product = self.get_object()
+        variant = product.variants.first()
+        attrs = {}
+        if variant:
+            for av in variant.attributes.select_related('attribute').all():
+                attrs[av.attribute.name] = av.value
+        return Response({
+            'id': product.id,
+            'name': product.name,
+            'base_price': float(product.base_price.amount),
+            'currency': str(product.base_price.currency),
+            'average_rating': product.average_rating,
+            'numbers_reviews': product.numbers_reviews,
+            'stock_quantity': product.stock_quantity,
+            'attributes': attrs,
+            'image': request.build_absolute_uri(product.image.url) if product.image else None,
+        })
+
+
+class ProductComparisonViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def _get_user_or_session(self, request):
+        if request.user.is_authenticated:
+            return {'user': request.user}
+        if not request.session.session_key:
+            request.session.create()
+        return {'session_key': request.session.session_key}
+
+    def list(self, request):
+        lookup = self._get_user_or_session(request)
+        comparisons = ProductComparison.objects.filter(**lookup).select_related('product')
+        serializer = ProductComparisonSerializer(comparisons, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    def create(self, request):
+        product_id = request.data.get('product_id')
+        if not product_id:
+            return Response({'error': 'product_id requis.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            product = Products.objects.get(id=product_id)
+        except Products.DoesNotExist:
+            return Response({'error': 'Produit introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+
+        lookup = self._get_user_or_session(request)
+
+        existing_count = ProductComparison.objects.filter(**lookup).count()
+        if existing_count >= 4:
+            return Response({'error': 'Maximum 4 produits en comparaison.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        obj, created = ProductComparison.objects.get_or_create(**lookup, product=product)
+        if not created:
+            return Response({'message': 'Déjà en comparaison.'}, status=status.HTTP_200_OK)
+
+        return Response({'message': 'Ajouté à la comparaison.'}, status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, pk=None):
+        lookup = self._get_user_or_session(request)
+        deleted, _ = ProductComparison.objects.filter(**lookup, product_id=pk).delete()
+        if deleted:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response({'error': 'Non trouvé.'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['delete'], url_path='clear')
+    def clear(self, request):
+        lookup = self._get_user_or_session(request)
+        ProductComparison.objects.filter(**lookup).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     
 # class ColorsView(ListAPIView):
