@@ -3,19 +3,28 @@ from rest_framework.generics import ListAPIView
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from .serializers import BannerSerializer, CampaignSerializer, FlashSaleSerializer, FlashSaleListSerializer
+from .serializers import AnnouncementSerializer, BannerSerializer, PublicBannerSerializer, CampaignSerializer, FlashSaleSerializer, FlashSaleListSerializer
 from .models import Banner, Announcement, Campaign, FlashSale
 
 
+class AnnouncementView(ListAPIView):
+    serializer_class = AnnouncementSerializer
+    queryset = Announcement.objects.filter(is_active=True)
+
+
 class BannerView(ListAPIView):
-    serializer_class = BannerSerializer
+    serializer_class = PublicBannerSerializer
     queryset = Banner.objects.filter(is_active=True)
 
     def get_queryset(self):
+        qs = Banner.objects.filter(is_active=True)
         target = self.request.query_params.get('target')
+        banner_type = self.request.query_params.get('type')
         if target:
-            return self.queryset.filter(target=target).order_by('-priority')
-        return self.queryset.order_by('-priority')
+            qs = qs.filter(target=target)
+        if banner_type:
+            qs = qs.filter(type=banner_type)
+        return qs.order_by('-priority')
 
 
 class CampaignViewSet(viewsets.ReadOnlyModelViewSet):

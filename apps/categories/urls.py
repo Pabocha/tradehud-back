@@ -1,6 +1,6 @@
 from rest_framework.routers import DefaultRouter
 from django.urls import path, include
-from .views import CategoriesView, CategoryHierarchyView, CategoryAttributeViewSet
+from .views import CategoriesView, CategoryHierarchyView, CategoryAttributeViewSet, CategoryFieldsView
 
 app_name = 'categories'
 
@@ -13,4 +13,5 @@ urlpatterns = [
     path('', include(router.urls)),
     path('all/', CategoriesView.as_view(), name='categories'),
     path('hierarchy/', CategoryHierarchyView.as_view(), name='category-hierarchy'),
+    path('<int:pk>/fields/', CategoryFieldsView.as_view(), name='category-fields'),
 ]

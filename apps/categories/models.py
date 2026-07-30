@@ -56,30 +56,6 @@ class Categories(MPTTModel):
         type_label = "Produit" if self.category_type == "product" else "Boutique"
         return f"{self.name} ({type_label})"
 
-# class CategoryField(models.Model):
-#     FIELD_TYPES = [
-#         ('text', 'Texte'),
-#         ('number', 'Nombre'),
-#         ('boolean', 'Booléen'),
-#         ('choice', 'Choix'),
-#         ('multichoice', 'Choix multiple'),
-#         ('date', 'Date'),
-#         ('datetime', 'Date et heure'),
-#         ('textarea', 'Zone de texte'),
-#         ('color', 'Couleur'),
-#         # etc.
-#     ]
-
-
-#     category = models.ForeignKey("categories.Categories", related_name="fields", on_delete=models.CASCADE)
-#     name = models.CharField(max_length=100)
-#     label = models.CharField(max_length=255)
-#     field_type = models.CharField(max_length=20, choices=FIELD_TYPES)
-#     required = models.BooleanField(default=False)
-#     choices = models.JSONField(blank=True, null=True)  # Pour les champs de type "choice"
-
-#     def __str__(self):
-#         return f"{self.name} ({self.field_type})"
 
 class CategoryAttribute(models.Model):
 

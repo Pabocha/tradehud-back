@@ -2,10 +2,22 @@ from rest_framework import serializers
 from .models import Banner, Announcement, Campaign, FlashSale
 
 
+class AnnouncementSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Announcement
+        fields = ['id', 'title', 'description', 'badge', 'badge_color']
+
+
 class BannerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Banner
         fields = '__all__'
+
+
+class PublicBannerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Banner
+        fields = ['id', 'image', 'title', 'description', 'tag', 'cta', 'badge', 'badge_color', 'link', 'type', 'priority']
 
 
 class CampaignSerializer(serializers.ModelSerializer):

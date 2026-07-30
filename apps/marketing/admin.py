@@ -11,7 +11,9 @@ class BannerAdmin(admin.ModelAdmin):
 
 @admin.register(Announcement)
 class AnnouncementAdmin(admin.ModelAdmin):
-    list_display = ('title', 'badge')
+    list_display = ('title', 'badge', 'is_active', 'priority')
+    list_filter = ('is_active',)
+    list_editable = ('is_active', 'priority')
     search_fields = ('title',)
 
 @admin.register(Campaign)

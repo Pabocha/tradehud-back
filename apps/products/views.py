@@ -75,7 +75,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             Products.objects
             .with_total_stock()
             .select_related("shop", "category")
-            .prefetch_related("variants")
+            .prefetch_related("variants", "galerie_images")
         )
 
     def _paginate_with_page_size(self, queryset, request, page_size):
@@ -887,7 +887,3 @@ class ProductComparisonViewSet(viewsets.ViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     
-# class ColorsView(ListAPIView):
-#     serializer_class = ColorSerializer
-#     queryset = Colors.objects.all()
-#     pagination_class = None

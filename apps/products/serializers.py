@@ -324,7 +324,7 @@ class ProductSerializer(serializers.ModelSerializer):
         queryset=Categories.objects.all(),
     )
     total_stock = serializers.IntegerField(read_only=True)
-    # specific_fields_display = serializers.SerializerMethodField()
+    attribute_display = serializers.SerializerMethodField()
     # ===== NOUVEAUX CHAMPS DE PRIX =====
     price_tiers = serializers.SerializerMethodField()
     active_promotions = serializers.SerializerMethodField()
@@ -350,32 +350,6 @@ class ProductSerializer(serializers.ModelSerializer):
             except Exception:
                 raise serializers.ValidationError({'sizes': 'Format JSON invalide.'})
 
-        # Traitement de specific_fields si présent
-        # if 'specific_fields' in data:
-        #     category = data.get('category') or self.initial_data.get('category')
-        #     if category:
-        #         fields = CategoryField.objects.filter(category_id=category)
-        #         label_to_name = {f.label: f.name for f in fields}
-
-        #         original = data['specific_fields']
-        #         if isinstance(original, str):
-        #             try:
-        #                 original = json.loads(original)
-        #             except Exception:
-        #                 raise serializers.ValidationError({
-        #                     'specific_fields': 'Format JSON invalide.'
-        #                 })
-
-        #         translated = {}
-        #         for label, value in original.items():
-        #             key = label_to_name.get(label)
-        #             if key:
-        #                 translated[key] = value
-        #             else:
-        #                 translated[label] = value  # fallback si le label est inconnu
-
-        #         data['specific_fields'] = translated
-
         return super().to_internal_value(data)
     
     class Meta:
@@ -386,29 +360,34 @@ class ProductSerializer(serializers.ModelSerializer):
         #     'color': {'read_only': True}
         # }
 
-    def get_specific_fields_display(self, obj):
-        result = {}
-
-        # Récupérer les champs liés à la catégorie du produit
-        fields = CategoryField.objects.filter(category=obj.category)
-
-        # Créer un mapping name -> label
-        name_to_label = {f.name: f.label for f in fields}
-
-        # S'assurer que specific_fields est bien un dictionnaire
-        specific_fields = obj.specific_fields
-        if isinstance(specific_fields, str):
+    def get_attribute_display(self, obj):
+        raw = getattr(obj, 'attribute', None) or {}
+        if isinstance(raw, str):
             try:
-                specific_fields = json.loads(specific_fields)
+                raw = json.loads(raw)
             except json.JSONDecodeError:
-                specific_fields = {}
+                raw = {}
+        if not raw:
+            return {}
 
-        # Remplacer les clés par les labels
-        for key, value in specific_fields.items():
-            label = name_to_label.get(key, key)  # fallback si label non trouvé
-            result[label] = value
+        category = getattr(obj, 'category', None)
+        fields_config = getattr(category, 'fields_config', None) or []
+        if isinstance(fields_config, str):
+            try:
+                fields_config = json.loads(fields_config)
+            except json.JSONDecodeError:
+                fields_config = []
 
-        return result
+        name_to_label = {
+            f['name']: f.get('label', f['name'])
+            for f in fields_config
+            if isinstance(f, dict) and 'name' in f
+        }
+
+        return {
+            name_to_label.get(key, key): value
+            for key, value in raw.items()
+        }
 
     def get_price_tiers(self, obj):
         """Expose les paliers de prix disponibles pour le B2B"""
@@ -620,12 +599,26 @@ def build_variant_tree(product):
         'structure': attr_codes,
         'variants': build_nodes(tree, 0)
     }
+class GalerieImageSerializer(serializers.ModelSerializer):
+    # Validate uploaded gallery image size/type
+    image = serializers.ImageField(validators=[validate_image_file])
+
+    class Meta:
+        model = GalerieImages
+        fields = '__all__'
+
+
+class ProductGalleryImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GalerieImages
+        fields = ['image']
 
 
 class ProductDetailSerializer(ProductSerializer):
     """Serializer pour le détail produit (lecture)."""
     variant_tree = serializers.SerializerMethodField()
     seller_id = serializers.IntegerField(source='shop.owner_id', read_only=True)
+    galerie_images = ProductGalleryImageSerializer(many=True, read_only=True)
 
     class Meta(ProductSerializer.Meta):
         fields = '__all__'
@@ -672,6 +665,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             'seller_id',
             'base_price_currency',
             'country_origin',
+            'description',
         ]
 
     def get_pricing_display(self, obj):
@@ -792,15 +786,6 @@ class ProductPromotionListSerializer(ProductListSerializer):
             'minutes': max(minutes, 0),
             'total_seconds': max(int(delta.total_seconds()), 0),
         }
-
-
-class GalerieImageSerializer(serializers.ModelSerializer):
-    # Validate uploaded gallery image size/type
-    image = serializers.ImageField(validators=[validate_image_file])
-
-    class Meta:
-        model = GalerieImages
-        fields = '__all__'
 
 class ColorSerializer(serializers.ModelSerializer):
     class Meta:

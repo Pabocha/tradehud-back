@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import CustomUser, SellerAccount, ShopFollow, UserSettings, UserProfile
+from .models import CustomUser, SellerAccount, ShopFollow, UserSettings, UserProfile, Address
 from django.contrib.auth.admin import UserAdmin
 from .forms import UserCreationForm, UserChangeForm
 
@@ -29,6 +29,11 @@ class UserAdmin(UserAdmin):
 class UserSettingsAdmin(admin.ModelAdmin):
     list_display = ('user', 'language', 'country', 'currency')
     search_fields = ('country', 'currency')
+
+@admin.register(Address)
+class AddressAdmin(admin.ModelAdmin):
+    list_display = ('customer', 'street_address', 'city', 'state_region', 'postal_code', 'country')
+    search_fields = ('city', 'state_region', 'country')
 
 admin.site.register(CustomUser, UserAdmin)
 admin.site.register(SellerAccount)

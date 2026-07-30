@@ -62,6 +62,21 @@ class CategoryHierarchyView(GenericAPIView):
 #         serializer = CategoryFieldSerializer(fields, many=True)
 #         return Response(serializer.data)
 
+class CategoryFieldsView(GenericAPIView):
+    """Return fields_config for a single category."""
+    def get(self, request, pk, *args, **kwargs):
+        try:
+            category = Categories.objects.get(pk=pk)
+        except Categories.DoesNotExist:
+            return Response({'detail': 'Categorie introuvable.'}, status=404)
+        fields_config = getattr(category, 'fields_config', None) or []
+        return Response({
+            'category_id': category.id,
+            'category_name': category.name,
+            'fields_config': fields_config,
+        })
+
+
 class CategoryAttributeViewSet(viewsets.ModelViewSet):
     queryset = CategoryAttribute.objects.all()
     serializer_class = CategoryAttributeSerializer

@@ -92,9 +92,17 @@ class Products(models.Model):
     sponsored_start = models.DateTimeField(blank=True, null=True)
     sponsored_end = models.DateTimeField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    weight = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Poids en kg")
+    length = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Longueur en cm")
+    width = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Largeur en cm")
+    height = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Hauteur en cm")
     tags = TaggableManager(blank=True)  # champ tags libre
     remarks = models.TextField(blank=True, null=True)
     attribute = models.JSONField(default=dict, blank=True)
+    features = models.JSONField(
+        default=list, blank=True,
+        help_text="Points forts du produit, liste de chaines (ex: ['Résistant à l'eau', 'Charge rapide'])"
+    )
     # Ordre des attributs de variantes pour reconstruire l'arbre côté frontend
     variant_structure = models.JSONField(default=list, blank=True)
     objects = ProductQuerySet.as_manager()
@@ -207,6 +215,9 @@ class ProductVariant(models.Model):
     product = models.ForeignKey(Products, related_name='variants', on_delete=models.CASCADE)
     sku = models.CharField(max_length=100, unique=True, blank=True, null=True)
     weight = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    length = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Longueur en cm")
+    width = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Largeur en cm")
+    height = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Hauteur en cm")
     price_override = MoneyField(max_digits=15, decimal_places=2, default_currency='XOF', null=True, blank=True)
     stock_quantity = models.PositiveIntegerField(default=1)
     # Attributs personnalisÃ©s (non-officiels) saisis par l'utilisateur
@@ -215,6 +226,18 @@ class ProductVariant(models.Model):
 
     class Meta:
         unique_together = ['product', 'sku']
+
+    def get_effective_weight(self):
+        return self.weight or self.product.weight
+
+    def get_effective_length(self):
+        return self.length or self.product.length
+
+    def get_effective_width(self):
+        return self.width or self.product.width
+
+    def get_effective_height(self):
+        return self.height or self.product.height
 
     def get_unit_price(self, quantity=1):
         """

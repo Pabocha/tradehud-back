@@ -12,6 +12,7 @@ router.register('returns', ReturnRequestViewSet, basename='return-request')
 urlpatterns = [
     # Orders - custom explicit URLs
     path('create/', OrderViewSet.as_view({'post': 'create'}), name='order-create'),
+    path('preview/', OrderViewSet.as_view({'post': 'preview'}), name='order-preview'),
     path('list/', OrderViewSet.as_view({'get': 'list'}), name='order-list'),
     path('<int:pk>/', OrderViewSet.as_view({'get': 'retrieve'}), name='order-detail'),
     path('<int:pk>/update/', OrderViewSet.as_view({'put': 'update', 'patch': 'partial_update'}), name='order-update'),

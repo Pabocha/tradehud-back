@@ -79,6 +79,7 @@ def preview_coupon(cart_items, user, coupon_code, delivery_cost, selected_ids=No
         "coupon_id": coupon.id if coupon else None,
         "scope": coupon.scope if coupon else None,
         "discount_type": coupon.discount_type if coupon else None,
+        "discount_value": float(coupon.discount_value) if coupon else None,
         "subtotal": subtotal,
         "delivery_cost": delivery_cost,
         "eligible_subtotal": coupon_result["eligible_subtotal"],

@@ -14,10 +14,31 @@ class ColorsAdmin(admin.ModelAdmin):
     list_display = ('name', 'code_hex')
 
 @admin.register(Products)
-class ColorsAdmin(admin.ModelAdmin):
+class ProductsAdmin(admin.ModelAdmin):
     list_display = ('name', 'shop', 'country_origin', 'status', 'date_added')
     list_filter = ('status',)
     search_fields = ('name', 'shop', 'tags')
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'shop', 'category', 'base_price', 'brand', 'status', 'image', 'description', 'features')
+        }),
+        ('Spécifications', {
+            'fields': ('attribute',),
+            'description': "JSON: {\"clé\": \"valeur\"} pour les caractéristiques techniques"
+        }),
+        ('Dimensions & Livraison', {
+            'fields': ('weight', 'length', 'width', 'height', 'country_origin', 'min_order_quantity', 'stock_quantity')
+        }),
+        ('Visibilité', {
+            'fields': ('is_active', 'is_sponsored', 'sponsored_start', 'sponsored_end', 'views_count')
+        }),
+        ('Avis & Tags', {
+            'fields': ('numbers_reviews', 'average_rating', 'tags', 'remarks')
+        }),
+        ('Variantes', {
+            'fields': ('variant_structure',)
+        }),
+    )
 
 @admin.register(ProductPromotion)
 class ProductPromotionAdmin(admin.ModelAdmin):

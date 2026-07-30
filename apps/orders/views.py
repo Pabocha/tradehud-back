@@ -14,7 +14,7 @@ from apps.accounts.models import Address
 from .models import Orders, Quote, OrderLine, ReturnRequest, ReturnItem, Refund
 from apps.notifications.notifications import create_notification_if_allowed
 from .serializers import (
-    OrderCreateSerializer, OrderSerializer, QuoteSerializer,
+    OrderCreateSerializer, OrderPreviewSerializer, OrderSerializer, QuoteSerializer,
     ReturnRequestCreateSerializer, ReturnRequestSerializer, RefundSerializer,
 )
 from .services import is_quote_shop_owner, is_quote_participant, is_quote_expired, create_order_from_quote
@@ -285,6 +285,13 @@ class OrderViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True, context=context)
         return Response(serializer.data)
 
+    @action(detail=False, methods=["post"], url_path="preview")
+    def preview(self, request):
+        serializer = OrderPreviewSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        result = serializer.compute_preview()
+        return Response(result)
+
 
 class ClientQuoteViewSet(viewsets.ModelViewSet):
     queryset = (
@@ -408,18 +415,11 @@ class ClientQuoteViewSet(viewsets.ModelViewSet):
 
         try:
             from apps.shipping.services import calculate_shipping_cost
-            country_code = str(origin_address.country) if origin_address.country else ''
-            shop_ids = list(quote.lines.values_list('shop_id', flat=True).distinct())
-            subtotal = sum(
-                Decimal(str(getattr(line.negotiated_price, 'amount', line.negotiated_price))) * line.quantity
-                for line in quote.lines.all()
-            )
+            transport_mode = request.data.get('transport_mode', 'road')
             shipping_result = calculate_shipping_cost(
-                order_lines=OrderLine.objects.none(),
-                country_code=country_code,
-                method='standard',
-                shop_ids=shop_ids,
-                subtotal=subtotal,
+                order_lines=quote.lines.all(),
+                destination_address=origin_address,
+                transport_mode=transport_mode,
             )
             delivery_cost = shipping_result['delivery_cost']
         except Exception:
@@ -525,18 +525,11 @@ class ClientQuoteViewSet(viewsets.ModelViewSet):
 
         try:
             from apps.shipping.services import calculate_shipping_cost
-            country_code = str(origin_address.country) if origin_address.country else ''
-            shop_ids = list(quote.lines.values_list('shop_id', flat=True).distinct())
-            subtotal = sum(
-                Decimal(str(getattr(line.negotiated_price, 'amount', line.negotiated_price))) * line.quantity
-                for line in quote.lines.all()
-            )
+            transport_mode = request.data.get('transport_mode', 'road')
             shipping_result = calculate_shipping_cost(
-                order_lines=OrderLine.objects.none(),
-                country_code=country_code,
-                method='standard',
-                shop_ids=shop_ids,
-                subtotal=subtotal,
+                order_lines=quote.lines.all(),
+                destination_address=origin_address,
+                transport_mode=transport_mode,
             )
             delivery_cost = shipping_result['delivery_cost']
         except Exception:

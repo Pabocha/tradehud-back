@@ -28,7 +28,13 @@ class Orders(models.Model):
         ('express', 'Livraison Express'),
         ('pickup', 'Retrait en point relais / magasin'),
     ]
-    
+
+    CHOICES_TRANSPORT_MODE = [
+        ('road', 'Route'),
+        ('sea', 'Mer'),
+        ('air', 'Air'),
+    ]
+
     customer = models.ForeignKey(User, on_delete=models.CASCADE)
     order_date = models.DateTimeField(auto_now_add=True)
     origin_address = models.ForeignKey(
@@ -50,14 +56,18 @@ class Orders(models.Model):
     shipping_country = CountryField(blank_label='(select country)')
 
     # 3. Informations de suivi et transporteur (Ajoutées précédemment)
-    shipping_method = models.CharField(max_length=50, choices=CHOICES_SHIPPING_METHOD, default='standard')
+    shipping_method = models.CharField(max_length=50, choices=CHOICES_SHIPPING_METHOD, default='standard', null=True, blank=True)
+    transport_mode = models.CharField(
+        max_length=10, choices=CHOICES_TRANSPORT_MODE, default='road',
+        help_text="Mode de transport: route (domestique), mer ou air (international)"
+    )
     carrier_name = models.CharField(max_length=100, blank=True, null=True)
     tracking_number = models.CharField(max_length=100, blank=True, null=True)
     tracking_url = models.URLField(max_length=500, blank=True, null=True)
     delivery_notes = models.TextField(blank=True, null=True)
 
     total_amount = MoneyField(max_digits=15, decimal_places=2, default_currency="XOF")
-    delivery_cost = MoneyField(max_digits=10, decimal_places=2, default_currency="XOF")
+    delivery_cost = MoneyField(max_digits=10, decimal_places=2, default_currency="XOF", default=0.00)
     status = models.CharField(max_length=50, choices=CHOICES_STATUS, default='pending')
     payment_method = models.ManyToManyField('payments.PaymentMethod')
     payment_status = models.CharField(
@@ -78,7 +88,7 @@ class Orders(models.Model):
     customer_note = models.TextField(blank=True, null=True)
     shipping_date = models.DateTimeField(blank=True, null=True)
     estimated_delivery_date = models.DateTimeField(blank=True, null=True)
-    discount = models.DecimalField(max_digits=6, decimal_places=2, blank=True, null=True)
+    discount = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     applied_coupon = models.ForeignKey(
         'coupons.Coupon',
         on_delete=models.SET_NULL,
