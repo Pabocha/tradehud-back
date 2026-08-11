@@ -44,6 +44,8 @@ class ProductFilter(django_filters.FilterSet):
         elif value == 'popular':
             thirty_days_ago = timezone.now() - timedelta(days=30)
 
+            # Les produits de la vente flash active ne figurent pas dans les produits populaires
+            queryset = queryset.exclude_active_flash()
 
             recent_direct_qty = OrderLine.objects.filter(
                 product=OuterRef('pk'),

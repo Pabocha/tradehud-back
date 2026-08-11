@@ -41,6 +41,17 @@ class ProductQuerySet(models.QuerySet):
             total_stock=Sum('variants__stock_quantity')
         )
 
+    def exclude_active_flash(self):
+        from apps.marketing.models import FlashSale
+        t = timezone.now()
+        flash_product_ids = FlashSale.objects.filter(
+            is_active=True,
+            start_at__lte=t,
+            end_at__gte=t,
+            target_type='product',
+        ).values('target_products')
+        return self.exclude(id__in=flash_product_ids)
+
 
 class Products(models.Model):
     CHOICES_STATUS = [
@@ -118,23 +129,7 @@ class Products(models.Model):
         )
 
     def get_unit_price(self, quantity=1):
-        # 1. Flash Sale active
-        from apps.marketing.models import FlashSale
-        now_ts = now()
-        flash_sales = FlashSale.objects.filter(
-            is_active=True, start_at__lte=now_ts, end_at__gte=now_ts
-        )
-        for fs in flash_sales:
-            if fs.target_type == 'all':
-                return fs.compute_discounted_price(self.base_price)
-            if fs.target_type == 'product' and fs.target_products.filter(id=self.id).exists():
-                return fs.compute_discounted_price(self.base_price)
-            if fs.target_type == 'category' and self.category and fs.target_categories.filter(id=self.category_id).exists():
-                return fs.compute_discounted_price(self.base_price)
-            if fs.target_type == 'shop' and fs.target_shops.filter(id=self.shop_id).exists():
-                return fs.compute_discounted_price(self.base_price)
-
-        # 2. Promo active
+        # 1. Promo active
         promo = self.promotions.filter(
             is_active=True,
             start_at__lte=now(),
@@ -158,7 +153,7 @@ class Products(models.Model):
         if tier:
             return tier.price
 
-        # 4. Prix normal
+        # 3. Prix normal
         return self.base_price
 
     class Meta:
@@ -275,39 +270,7 @@ class ProductVariant(models.Model):
 
         # 4. Prix de base
         return product.base_price
-    
-    def get_unit_price(self, quantity=1):
-        # 1. Flash Sale active
-        from apps.marketing.models import FlashSale
-        now_ts = now()
-        product = self.product
-        flash_sales = FlashSale.objects.filter(
-            is_active=True, start_at__lte=now_ts, end_at__gte=now_ts
-        )
-        for fs in flash_sales:
-            if fs.target_type == 'all':
-                if self.price_override:
-                    return fs.compute_discounted_price(self.price_override)
-                return fs.compute_discounted_price(product.base_price)
-            if fs.target_type == 'product' and fs.target_products.filter(id=product.id).exists():
-                if self.price_override:
-                    return fs.compute_discounted_price(self.price_override)
-                return fs.compute_discounted_price(product.base_price)
-            if fs.target_type == 'category' and product.category and fs.target_categories.filter(id=product.category_id).exists():
-                if self.price_override:
-                    return fs.compute_discounted_price(self.price_override)
-                return fs.compute_discounted_price(product.base_price)
-            if fs.target_type == 'shop' and fs.target_shops.filter(id=product.shop_id).exists():
-                if self.price_override:
-                    return fs.compute_discounted_price(self.price_override)
-                return fs.compute_discounted_price(product.base_price)
 
-        # 2. Prix spécifique à la variante
-        if self.price_override:
-            return self.price_override
-
-        # 3. Fallback produit
-        return product.get_unit_price(quantity)
     def save(self, *args, **kwargs):
         # GÃ©nÃ©rer un SKU si non fourni
         if not self.sku:

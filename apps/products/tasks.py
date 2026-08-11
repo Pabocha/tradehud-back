@@ -1,6 +1,20 @@
 from celery import shared_task
 from django.db.models import Sum
+from django.utils import timezone
 from apps.notifications.notifications import create_notification_if_allowed
+
+
+@shared_task
+def deactivate_expired_promotions():
+    """Désactive les promotions produits dont la date de fin est dépassée."""
+    from apps.products.models import ProductPromotion
+
+    now = timezone.now()
+    count = ProductPromotion.objects.filter(
+        is_active=True,
+        end_at__lt=now,
+    ).update(is_active=False)
+    return {'deactivated': count}
 
 
 @shared_task

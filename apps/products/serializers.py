@@ -312,6 +312,64 @@ class VariantTreeSerializer(serializers.Serializer):
         return attrs
 
 
+def compute_pricing_display(obj):
+    """
+    Synthétise la logique de prix pour le frontend.
+    Priorité : promotion active > paliers > prix de base.
+    """
+    from django.utils.timezone import now
+
+    base_price_amount = float(obj.base_price.amount)
+    currency = str(obj.base_price.currency)
+
+    # 1️⃣ Promotion active
+    active_promo = obj.promotions.filter(
+        is_active=True,
+        start_at__lte=now(),
+        end_at__gte=now()
+    ).first()
+
+    if active_promo:
+        promo_price_amount = float(active_promo.promo_price.amount)
+        return {
+            'type': 'promo',
+            'display_text': f'{int(round(promo_price_amount))} {currency}',
+            'base_price': base_price_amount,
+            'promo_price': promo_price_amount,
+            'should_strike_base': True,
+            'currency': currency,
+            'promo_details': {
+                'start_at': active_promo.start_at.isoformat(),
+                'end_at': active_promo.end_at.isoformat()
+            }
+        }
+
+    # 2️⃣ Paliers de prix
+    price_tiers = obj.price_tiers.all().order_by('min_quantity')
+    if price_tiers.exists():
+        min_price = float(price_tiers.first().price.amount)
+        max_price = float(price_tiers.last().price.amount)
+        max_price = max(max_price, base_price_amount)
+
+        return {
+            'type': 'tiers',
+            'display_text': f'{int(round(min_price))} - {int(round(max_price))} {currency}',
+            'min_price': min_price,
+            'max_price': max_price,
+            'base_price': base_price_amount,
+            'currency': currency,
+            'tiers_count': price_tiers.count()
+        }
+
+    # 3️⃣ Prix de base
+    return {
+        'type': 'base',
+        'display_text': f'{int(round(base_price_amount))} {currency}',
+        'price': base_price_amount,
+        'currency': currency
+    }
+
+
 class ProductSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(required=False, allow_null=True, validators=[validate_image_file])
     base_price = MoneyField(max_digits=15, decimal_places=2)
@@ -439,67 +497,8 @@ class ProductSerializer(serializers.ModelSerializer):
         }
 
     def get_pricing_display(self, obj):
-        """
-        Synthétise la logique de prix pour le frontend.
-        Guide le frontend sur comment afficher le prix.
-        
-        Structure:
-        - Si promo active: afficher prix_de_base (barré) + prix_promo
-        - Sinon si paliers: afficher "De prix_min à prix_max"
-        - Sinon: afficher prix_de_base
-        """
-        from django.utils.timezone import now
-        
-        base_price_amount = float(obj.base_price.amount)
-        currency = str(obj.base_price.currency)
-        
-        # 1️⃣ Vérifier s'il y a une promotion ACTIVE
-        active_promo = obj.promotions.filter(
-            is_active=True,
-            start_at__lte=now(),
-            end_at__gte=now()
-        ).first()
-        
-        if active_promo:
-            promo_price_amount = float(active_promo.promo_price.amount)
-            return {
-                'type': 'promo',
-                'display_text': f'{int(round(promo_price_amount))} {currency}',
-                'base_price': base_price_amount,
-                'promo_price': promo_price_amount,
-                'should_strike_base': True,  # Afficher base_price barré
-                'currency': currency,
-                'promo_details': {
-                    'start_at': active_promo.start_at.isoformat(),
-                    'end_at': active_promo.end_at.isoformat()
-                }
-            }
-        
-        # 2️⃣ Vérifier s'il y a des PALIERS DE PRIX
-        price_tiers = obj.price_tiers.all().order_by('min_quantity')
-        if price_tiers.exists():
-            min_price = float(price_tiers.first().price.amount)
-            max_price = float(price_tiers.last().price.amount)
-            # Si paliers, le max est souvent le prix de base pour 1 unité
-            max_price = max(max_price, base_price_amount)
-            
-            return {
-                'type': 'tiers',
-                'display_text': f'{int(round(min_price))} - {int(round(max_price))} {currency}',
-                'min_price': min_price,
-                'max_price': max_price,
-                'base_price': base_price_amount,
-                'currency': currency,
-                'tiers_count': price_tiers.count()
-            }
-        
-        # 3️⃣ AUCUNE PROMO NI PALIER → prix de base uniquement
-        return {
-            'type': 'base',
-            'display_text': f'{int(round(base_price_amount))} {currency}',
-            'price': base_price_amount,
-            'currency': currency
-        }
+        """Synthétise la logique de prix pour le frontend (voir compute_pricing_display)."""
+        return compute_pricing_display(obj)
 
     def create(self, validated_data):
         tags = validated_data.pop('tags', [])
@@ -635,6 +634,7 @@ class ProductDetailSerializer(ProductSerializer):
 class ProductListSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(required=False, allow_null=True, validators=[validate_image_file])
     base_price = MoneyField(max_digits=15, decimal_places=2)
+    category_name = serializers.CharField(source='category.name', read_only=True, default=None)
     shop_name = serializers.CharField(source='shop.name', read_only=True)
     shop_is_verified = serializers.BooleanField(source='shop.is_verifted', read_only=True)
     seller_id = serializers.IntegerField(source='shop.owner_id', read_only=True)
@@ -651,6 +651,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             'image',
             'base_price',
             'category',
+            'category_name',
             'pricing_display',
             'total_stock',
             'stock_quantity',
@@ -669,58 +670,8 @@ class ProductListSerializer(serializers.ModelSerializer):
         ]
 
     def get_pricing_display(self, obj):
-        """
-        Synthétise la logique de prix pour le frontend.
-        Guide le frontend sur comment afficher le prix.
-        """
-        from django.utils.timezone import now
-
-        base_price_amount = float(obj.base_price.amount)
-        currency = str(obj.base_price.currency)
-
-        active_promo = obj.promotions.filter(
-            is_active=True,
-            start_at__lte=now(),
-            end_at__gte=now()
-        ).first()
-
-        if active_promo:
-            promo_price_amount = float(active_promo.promo_price.amount)
-            return {
-                'type': 'promo',
-                'display_text': f'{int(round(promo_price_amount))} {currency}',
-                'base_price': base_price_amount,
-                'promo_price': promo_price_amount,
-                'should_strike_base': True,
-                'currency': currency,
-                'promo_details': {
-                    'start_at': active_promo.start_at.isoformat(),
-                    'end_at': active_promo.end_at.isoformat()
-                }
-            }
-
-        price_tiers = obj.price_tiers.all().order_by('min_quantity')
-        if price_tiers.exists():
-            min_price = float(price_tiers.first().price.amount)
-            max_price = float(price_tiers.last().price.amount)
-            max_price = max(max_price, base_price_amount)
-
-            return {
-                'type': 'tiers',
-                'display_text': f'{int(round(min_price))} - {int(round(max_price))} {currency}',
-                'min_price': min_price,
-                'max_price': max_price,
-                'base_price': base_price_amount,
-                'currency': currency,
-                'tiers_count': price_tiers.count()
-            }
-
-        return {
-            'type': 'base',
-            'display_text': f'{int(round(base_price_amount))} {currency}',
-            'price': base_price_amount,
-            'currency': currency
-        }
+        """Synthétise la logique de prix pour le frontend (voir compute_pricing_display)."""
+        return compute_pricing_display(obj)
 
     def get_has_variant(self, obj):
         return obj.variants.exists()

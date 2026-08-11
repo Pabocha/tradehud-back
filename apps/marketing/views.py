@@ -3,7 +3,7 @@ from rest_framework.generics import ListAPIView
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from .serializers import AnnouncementSerializer, BannerSerializer, PublicBannerSerializer, CampaignSerializer, FlashSaleSerializer, FlashSaleListSerializer
+from .serializers import AnnouncementSerializer, BannerSerializer, PublicBannerSerializer, CampaignSerializer, FlashSaleSerializer, FlashSaleListSerializer, FlashSaleWithProductsSerializer
 from .models import Banner, Announcement, Campaign, FlashSale
 
 
@@ -61,6 +61,8 @@ class FlashSaleViewSet(viewsets.ReadOnlyModelViewSet):
     def get_serializer_class(self):
         if self.action == 'list':
             return FlashSaleListSerializer
+        if self.action == 'products':
+            return FlashSaleWithProductsSerializer
         return FlashSaleSerializer
 
     def get_queryset(self):
@@ -69,6 +71,18 @@ class FlashSaleViewSet(viewsets.ReadOnlyModelViewSet):
         return FlashSale.objects.filter(
             is_active=True, start_at__lte=t, end_at__gte=t
         ).select_related('campaign')
+
+    @action(detail=False, methods=['get'], url_path='products')
+    def products(self, request):
+        from django.utils import timezone
+        t = timezone.now()
+        qs = FlashSale.objects.filter(
+            is_active=True, start_at__lte=t, end_at__gte=t
+        ).select_related('campaign').prefetch_related(
+            'target_products', 'target_categories', 'target_shops'
+        )
+        serializer = FlashSaleWithProductsSerializer(qs, many=True, context={'request': request})
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'], url_path='by-product/(?P<product_id>[^/.]+)')
     def by_product(self, request, product_id=None):

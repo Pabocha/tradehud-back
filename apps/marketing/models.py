@@ -98,8 +98,6 @@ class FlashSale(models.Model):
 
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    discount_type = models.CharField(max_length=10, choices=[('percent', 'Pourcentage'), ('fixed', 'Montant fixe')])
-    discount_value = models.DecimalField(max_digits=10, decimal_places=2, help_text="Pourcentage ou montant fixe")
     start_at = models.DateTimeField()
     end_at = models.DateTimeField()
     is_active = models.BooleanField(default=True)
@@ -118,10 +116,6 @@ class FlashSale(models.Model):
 
     def clean(self):
         super().clean()
-        if self.discount_type == 'percent' and self.discount_value > 100:
-            raise ValidationError("Le pourcentage ne peut pas dépasser 100%.")
-        if self.discount_value <= 0:
-            raise ValidationError("La valeur de réduction doit être positive.")
         if self.start_at and self.end_at and self.start_at >= self.end_at:
             raise ValidationError("start_at doit être avant end_at.")
 
@@ -134,15 +128,5 @@ class FlashSale(models.Model):
             return False
         return True
 
-    def compute_discounted_price(self, original_price):
-        """Calcule le prix après réduction de cette FlashSale."""
-        from decimal import Decimal
-        price = Decimal(str(original_price))
-        if self.discount_type == 'percent':
-            return price * (1 - self.discount_value / 100)
-        else:
-            discounted = price - self.discount_value
-            return max(discounted, Decimal('0'))
-
     def __str__(self):
-        return f"Flash: {self.name} ({self.discount_value}{'%' if self.discount_type == 'percent' else ' XOF'})"
+        return f"Flash: {self.name}"

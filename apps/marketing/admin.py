@@ -25,7 +25,7 @@ class CampaignAdmin(admin.ModelAdmin):
 
 @admin.register(FlashSale)
 class FlashSaleAdmin(admin.ModelAdmin):
-    list_display = ('name', 'discount_type', 'discount_value', 'target_type', 'is_active', 'start_at', 'end_at', 'uses', 'max_uses')
-    list_filter = ('is_active', 'discount_type', 'target_type', 'start_at')
+    list_display = ('name', 'target_type', 'is_active', 'start_at', 'end_at', 'uses', 'max_uses')
+    list_filter = ('is_active', 'target_type', 'start_at')
     search_fields = ('name',)
     filter_horizontal = ('target_categories', 'target_shops', 'target_products')

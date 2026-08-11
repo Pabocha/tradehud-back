@@ -349,7 +349,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     # Expiration des promotions produits (toutes les 10 minutes)
     'deactivate-expired-promotions': {
-        'task': 'produits.tasks.deactivate_expired_promotions',
+        'task': 'apps.products.tasks.deactivate_expired_promotions',
         'schedule': crontab(minute='*/10'),
     },
     # Expiration des quotes (toutes les 10 minutes)
@@ -371,5 +371,11 @@ CELERY_BEAT_SCHEDULE = {
     'verify-stock-consistency': {
         'task': 'products.tasks.verify_stock_consistency_task',
         'schedule': crontab(hour=4, minute=0),
+    },
+    # Renouvellement des produits en vente flash (toutes les nuits à minuit,
+    # la tâche n'agit que les jours pairs => tous les 2 jours)
+    'renew-flash-sale-products': {
+        'task': 'apps.marketing.tasks.renew_flash_sale_products',
+        'schedule': crontab(hour=0, minute=0),
     },
 }
