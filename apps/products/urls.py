@@ -7,6 +7,7 @@ from .api_views import (
     ProductSearchAutocompleteView,
     RecommendationsView,
     PromotionsView,
+    ProductsByCategorySlugView,
 )
 
 app_name = 'products'
@@ -28,6 +29,7 @@ urlpatterns = [
     path('promotions/', PromotionsView.as_view(), name='product-promotions'),
     # path('colors/', ColorsView.as_view(), name='color-product'),
     path('categories/<int:category_id>/', ProductsByCategoryView.as_view(), name='products-by-category'),
+    path('by-category-slug/<slug:slug>/', ProductsByCategorySlugView.as_view(), name='products-by-category-slug'),
     path('countries_with_product/', countries_with_products, name="countries-with-product"),
     path('attributes-values/', ProductAttributeValuesView.as_view(), name='product-attribute-values'),
     path('<int:product_pk>/gallery/', product_gallery_list, name='product-gallery'),

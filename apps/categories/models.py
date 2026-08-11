@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils.text import slugify
 from mptt.models import MPTTModel, TreeForeignKey
 from mptt.managers import TreeManager
 
@@ -30,9 +31,15 @@ class Categories(MPTTModel):
         blank=True,
         help_text="Format: [{'name': 'ram', 'label': 'Mémoire RAM', 'type': 'number'}, ...]"
     )
+    slug = models.SlugField(max_length=255, unique=True, blank=True)
     tree = TreeManager()
     is_active = models.BooleanField(default=True)
     category_type = models.CharField(max_length=10, choices=CATEGORY_TYPE_CHOICES, default="product")
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
 
     class MPTTMeta:
         parent_attr = 'parent_category' 

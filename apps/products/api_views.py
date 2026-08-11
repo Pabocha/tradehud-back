@@ -6,9 +6,11 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from elasticsearch_dsl import Q as ESQ
+from django.shortcuts import get_object_or_404
 from .documents import ProductDocument
 from .models import Products, ProductPromotion
 from .serializers import ProductListSerializer, ProductPromotionListSerializer
+from apps.categories.models import Categories
 from .services.recommendations import RecommendationService, parse_recommendation_params
 
 
@@ -223,3 +225,12 @@ class RecommendationsView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class ProductsByCategorySlugView(APIView):
+    def get(self, request, slug):
+        category = get_object_or_404(Categories, slug=slug)
+        descendant_ids = category.get_descendants(include_self=True).values_list('id', flat=True)
+        products = _base_product_queryset().filter(category_id__in=descendant_ids)
+        serializer = ProductListSerializer(products, many=True, context={'request': request})
+        return Response(serializer.data)
