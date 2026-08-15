@@ -618,7 +618,7 @@ class ProductGalleryImageSerializer(serializers.ModelSerializer):
 class ProductDetailSerializer(ProductSerializer):
     """Serializer pour le détail produit (lecture)."""
     variant_tree = serializers.SerializerMethodField()
-    seller_id = serializers.IntegerField(source='shop.owner_id', read_only=True)
+    seller_id = serializers.IntegerField(source='shop.owner.user_id', read_only=True)
     galerie_images = ProductGalleryImageSerializer(many=True, read_only=True)
     review_summary = serializers.SerializerMethodField()
 
@@ -664,7 +664,7 @@ class ProductListSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
     shop_name = serializers.CharField(source='shop.name', read_only=True)
     shop_is_verified = serializers.BooleanField(source='shop.is_verifted', read_only=True)
-    seller_id = serializers.IntegerField(source='shop.owner_id', read_only=True)
+    seller_id = serializers.IntegerField(source='shop.owner.user_id', read_only=True)
     has_variant = serializers.SerializerMethodField()
     pricing_display = serializers.SerializerMethodField()
     total_stock = serializers.IntegerField(read_only=True)

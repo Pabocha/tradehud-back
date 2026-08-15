@@ -98,7 +98,7 @@ class ShopRatingSerializer(serializers.ModelSerializer):
             )
 
         # La commande doit contenir au moins une ligne de cette boutique.
-        if not order.lignes_commande.filter(shop_id=shop.id).exists():
+        if not order.order_lines.filter(shop_id=shop.id).exists():
             raise serializers.ValidationError(
                 "Cette commande ne contient aucun produit de la boutique selectionnee."
             )

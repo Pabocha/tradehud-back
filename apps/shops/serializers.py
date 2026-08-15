@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.db.models import Avg, Count
 from apps.categories.models import Categories
-from apps.comments.models import ShopRatings
+from apps.comments.models import Ratings, ShopRatings
 from apps.accounts.models import SellerAccount, ShopFollow
 from apps.payments.models import PaymentMethod
 from .models import Shops
@@ -174,7 +174,6 @@ class ShopRatingPublicSerializer(serializers.ModelSerializer):
 class ShopPublicDetailSerializer(serializers.ModelSerializer):
     country_origin = serializers.SerializerMethodField()
     categories_details = ShopCategorySerializer(source='categories', many=True, read_only=True)
-    reviews = serializers.SerializerMethodField()
     latest_statistics = serializers.SerializerMethodField()
     review_summary = serializers.SerializerMethodField()
     total_followers = serializers.SerializerMethodField()
@@ -208,27 +207,11 @@ class ShopPublicDetailSerializer(serializers.ModelSerializer):
             'categories_details',
             'total_followers',
             'review_summary',
-            'reviews',
             'latest_statistics',
         ]
 
     def get_country_origin(self, obj):
         return str(obj.country_origin) if obj.country_origin else None
-
-    def get_reviews(self, obj):
-        request = self.context.get('request')
-        raw_limit = request.query_params.get('reviews_limit', 10) if request else 10
-        try:
-            limit = max(1, min(int(raw_limit), 50))
-        except (TypeError, ValueError):
-            limit = 10
-
-        queryset = (
-            ShopRatings.objects.filter(shop=obj)
-            .select_related('user', 'order')
-            .order_by('-date_added')[:limit]
-        )
-        return ShopRatingPublicSerializer(queryset, many=True, context=self.context).data
 
     def get_latest_statistics(self, obj):
         stats = obj.statistics.order_by('-date').first()
@@ -249,7 +232,7 @@ class ShopPublicDetailSerializer(serializers.ModelSerializer):
         }
 
     def get_review_summary(self, obj):
-        qs = ShopRatings.objects.filter(shop=obj)
+        qs = Ratings.objects.filter(product__shop=obj)
         aggregation = qs.aggregate(avg=Avg('rating'), total=Count('id'))
         total = aggregation['total'] or 0
 

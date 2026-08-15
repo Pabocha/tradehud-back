@@ -269,7 +269,7 @@ def notify_order_delivered(order_id):
     """
     try:
         order = Orders.objects.get(id=order_id)
-        shop_name = order.lignes_commande.first().shop.name if order.lignes_commande.exists() else 'Boutique'
+        shop_name = order.order_lines.first().shop.name if order.order_lines.exists() else 'Boutique'
         
         NotificationService.send_notification(
             user=order.customer,
@@ -278,7 +278,7 @@ def notify_order_delivered(order_id):
                 'order_id': order.id,
                 'order_number': order.order_number,
                 'shop_name': shop_name,
-                'shop_id': order.lignes_commande.first().shop.id if order.lignes_commande.exists() else None,
+                'shop_id': order.order_lines.first().shop.id if order.order_lines.exists() else None,
             }
         )
         

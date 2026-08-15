@@ -18,6 +18,33 @@ from apps.products.serializers import ProductSerializer
 from apps.categories.models import Categories
 
 
+def compute_shop_rating(shop):
+    """
+    Calcule la note publique de la boutique à partir des notes produits
+    (avis produits collectés sur les commandes livrées). La note boutique est
+    100% dérivée des notes produits — aucune note boutique séparée n'est utilisée.
+    Retourne (average_rating, number_of_reviews).
+    """
+    from apps.comments.models import Ratings
+
+    qs = Ratings.objects.filter(product__shop=shop)
+    average_rating = qs.aggregate(avg=Avg("rating"))["avg"] or 0
+    return round(float(average_rating), 2), qs.count()
+
+
+def recompute_shop_rating(shop):
+    """
+    Met à jour les champs persistés Shops.average_rating / number_of_reviews
+    à partir des notes produits de la boutique.
+    """
+    average_rating, number_of_reviews = compute_shop_rating(shop)
+    Shops.objects.filter(pk=shop.pk).update(
+        average_rating=average_rating,
+        number_of_reviews=number_of_reviews,
+    )
+    return average_rating, number_of_reviews
+
+
 def sync_shop_public_metrics(shop):
     """
     Synchronise les KPI persistés dans la table Shops (vue publique/admin).
@@ -35,10 +62,7 @@ def sync_shop_public_metrics(shop):
     total_orders = delivered_orders.count()
     number_sale = delivered_items.aggregate(s=Sum("quantity"))["s"] or 0
 
-    from apps.comments.models import ShopRatings
-    reviews = ShopRatings.objects.filter(shop=shop)
-    average_rating = reviews.aggregate(avg=Avg("rating"))["avg"] or 0
-    number_of_reviews = reviews.count()
+    average_rating, number_of_reviews = recompute_shop_rating(shop)
 
     Shops.objects.filter(pk=shop.pk).update(
         total_orders=total_orders,
@@ -224,10 +248,7 @@ def update_shop_statistics(shop, date=None):
         top_category = Categories.objects.get(id=top_category_data["product__category"])
 
     # ===== SATISFACTION & RÉPUTATION =====
-    from apps.comments.models import ShopRatings
-    shop_reviews = ShopRatings.objects.filter(shop=shop)
-    shop_avg_rating = shop_reviews.aggregate(avg=Avg('rating'))['avg'] or 0
-    shop_number_of_reviews = shop_reviews.count()
+    shop_avg_rating, shop_number_of_reviews = compute_shop_rating(shop)
 
     # ===== INVENTAIRE =====
     all_products = Products.objects.filter(shop=shop)

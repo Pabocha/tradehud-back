@@ -19,6 +19,11 @@ def update_product_average_rating(sender, instance, **kwargs):
     product.numbers_reviews = total
     product.save()
 
+    # AJOUT — La note publique de la boutique est 100% dérivée des notes produits.
+    if product.shop_id:
+        from apps.shops.views import recompute_shop_rating
+        recompute_shop_rating(product.shop)
+
 
 @receiver([post_save, post_delete], sender=ShopRatings)
 def update_shop_statistics_on_shop_rating_change(sender, instance, **kwargs):
