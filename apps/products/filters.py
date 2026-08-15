@@ -14,6 +14,7 @@ class ProductFilter(django_filters.FilterSet):
     search = django_filters.CharFilter(method='filter_search')
     country = django_filters.CharFilter(field_name='country_origin', lookup_expr='iexact')
     category = django_filters.NumberFilter(field_name='category_id')
+    shop = django_filters.NumberFilter(field_name='shop_id')
     min_price = django_filters.NumberFilter(field_name='base_price__amount', lookup_expr='gte')
     max_price = django_filters.NumberFilter(field_name='base_price__amount', lookup_expr='lte')
     is_active = django_filters.BooleanFilter(field_name='is_active')
@@ -27,7 +28,7 @@ class ProductFilter(django_filters.FilterSet):
         fields = [
             'tab', 'search', 'country', 'category',
             'min_price', 'max_price', 'is_active', 'is_sponsored',
-            'status', 'date_added_after', 'date_added_before',
+            'status', 'date_added_after', 'date_added_before', 'shop',
         ]
 
     def filter_search(self, queryset, name, value):

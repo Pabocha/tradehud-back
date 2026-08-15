@@ -77,6 +77,56 @@ class RatingViewSet(viewsets.ModelViewSet):
             data.append(item)
         return Response(data, status=status.HTTP_200_OK)
 
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[permissions.AllowAny],
+        url_path="by-shop",
+    )
+    def by_shop(self, request):
+        """
+        Commentaires publics des produits d'une boutique.
+        GET /api/comments/products/by-shop/?shop=<id>
+        """
+        shop_id = request.query_params.get("shop")
+        if not shop_id:
+            return Response(
+                {"detail": "Paramètre 'shop' requis"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        qs = (
+            Ratings.objects.all()
+            .select_related("user", "product", "order_item__order")
+            .filter(product__shop_id=shop_id)
+            .order_by("-id")
+        )
+
+        page = self.paginate_queryset(qs)
+        reviews = page if page is not None else qs
+
+        data = []
+        for review in reviews:
+            item = self.get_serializer(review, context={"request": request}).data
+            product = getattr(review, "product", None)
+            if product is not None:
+                image_url = None
+                try:
+                    if getattr(product, "image", None):
+                        image_url = request.build_absolute_uri(product.image.url)
+                except Exception:
+                    image_url = None
+                item["product_detail"] = {
+                    "id": product.id,
+                    "name": getattr(product, "name", None),
+                    "image": image_url,
+                }
+            data.append(item)
+
+        if page is not None:
+            return self.get_paginated_response(data)
+        return Response(data, status=status.HTTP_200_OK)
+
 
     @action(
         detail=False,
@@ -103,6 +153,13 @@ class RatingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        # AJOUT — Le statut d'avis n'est consultable que pour une commande livrée.
+        if order.status != "delivered":
+            return Response(
+                {"detail": "Vous ne pouvez laisser un avis que sur une commande livrée."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         order_items = list(
             order.order_lines.select_related("product", "variant__product", "shop").all()
         )
@@ -114,10 +171,17 @@ class RatingViewSet(viewsets.ModelViewSet):
             product = item.product or (item.variant.product if item.variant_id else None)
             if product:
                 if product.id not in products_by_id:
+                    product_image_url = None
+                    try:
+                        if getattr(product, "image", None):
+                            product_image_url = request.build_absolute_uri(product.image.url)
+                    except Exception:
+                        product_image_url = None
                     products_by_id[product.id] = {
                         "product": {
                             "id": product.id,
                             "name": product.name,
+                            "image": product_image_url,
                         },
                         "order_item_ids": [],
                     }

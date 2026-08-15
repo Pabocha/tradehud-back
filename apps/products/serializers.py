@@ -1,7 +1,9 @@
 from rest_framework import serializers
 from .models import *
+from django.db.models import Avg, Count
 from djmoney.contrib.django_rest_framework.fields import MoneyField
 from apps.categories.models import Categories, CategoryAttribute
+from apps.comments.models import Ratings
 from django.utils import timezone
 import json
 from taggit.serializers import TagListSerializerField
@@ -618,6 +620,7 @@ class ProductDetailSerializer(ProductSerializer):
     variant_tree = serializers.SerializerMethodField()
     seller_id = serializers.IntegerField(source='shop.owner_id', read_only=True)
     galerie_images = ProductGalleryImageSerializer(many=True, read_only=True)
+    review_summary = serializers.SerializerMethodField()
 
     class Meta(ProductSerializer.Meta):
         fields = '__all__'
@@ -629,6 +632,30 @@ class ProductDetailSerializer(ProductSerializer):
 
     def get_variant_tree(self, obj):
         return build_variant_tree(obj)
+
+    def get_review_summary(self, obj):
+        qs = Ratings.objects.filter(product=obj)
+        aggregation = qs.aggregate(avg=Avg('rating'), total=Count('id'))
+        total = aggregation['total'] or 0
+
+        breakdown_rows = (
+            qs.values('rating')
+            .annotate(total=Count('id'))
+            .order_by('rating')
+        )
+        breakdown = {int(row['rating']): row['total'] for row in breakdown_rows}
+
+        return {
+            'average_rating': round(float(aggregation['avg'] or 0), 2),
+            'total_reviews': total,
+            'ratings_breakdown': {
+                '1': breakdown.get(1, 0),
+                '2': breakdown.get(2, 0),
+                '3': breakdown.get(3, 0),
+                '4': breakdown.get(4, 0),
+                '5': breakdown.get(5, 0),
+            },
+        }
 
 
 class ProductListSerializer(serializers.ModelSerializer):

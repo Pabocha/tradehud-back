@@ -98,6 +98,7 @@ class OrderSerializer(serializers.ModelSerializer):
     preview_image_url = serializers.SerializerMethodField()
     preview_product_name = serializers.SerializerMethodField()
     payment_method_name = serializers.SerializerMethodField()
+    return_requests = serializers.SerializerMethodField()
 
     class Meta:
         model = Orders
@@ -112,7 +113,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'payment_first_name', 'payment_last_name', 'payment_phone_number',
             'applied_coupon_code', 'preview_image_url', 'preview_product_name',
             'is_discussed_order', 'source_type', 'source_quote_id',
-            'order_lines'
+            'order_lines', 'return_requests'
         ]
         read_only_fields = ['customer', 'order_number', 'status', 'payment_status']
 
@@ -172,6 +173,12 @@ class OrderSerializer(serializers.ModelSerializer):
     def get_order_lines(self, obj):
         lines = self._get_filtered_lignes(obj)
         return OrderLineSerializer(lines, many=True, context=self.context).data
+
+    def get_return_requests(self, obj):
+        requests = obj.return_requests.select_related('order').prefetch_related(
+            'items__order_line__variant__product', 'items__order_line__product'
+        )
+        return ReturnRequestSerializer(requests, many=True, context=self.context).data
 
 
 class OrderCreateSerializer(serializers.ModelSerializer):
@@ -828,8 +835,8 @@ class ReturnRequestCreateSerializer(serializers.Serializer):
         if order.customer_id != user.id:
             raise serializers.ValidationError({"order_id": "Cette commande ne vous appartient pas."})
 
-        if order.status not in ('delivered', 'in_transit'):
-            raise serializers.ValidationError({"order_id": "Seules les commandes livrées ou en transit peuvent faire l'objet d'un retour."})
+        if order.status != 'delivered':
+            raise serializers.ValidationError({"order_id": "Seules les commandes livrées peuvent faire l'objet d'un retour."})
 
         if ReturnRequest.objects.filter(order=order, status__in=('pending', 'approved', 'shipped_back')).exists():
             raise serializers.ValidationError({"order_id": "Un retour est déjà en cours pour cette commande."})

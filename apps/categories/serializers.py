@@ -24,7 +24,7 @@ class CategoryHierarchySerializer(ModelSerializer):
 
     class Meta:
         model = Categories
-        fields = ['id', 'name', 'image', 'children']
+        fields = ['id', 'name', 'slug', 'image', 'icon_name', 'icon_color', 'bg_icon', 'children']
 
     def get_children(self, obj):
         children = obj.children.filter(is_active=True)
@@ -43,7 +43,7 @@ class CategorySerializer(ModelSerializer):
 
     class Meta:
         model = Categories
-        fields = ['id', 'name', 'image', 'children']
+        fields = ['id', 'name', 'slug', 'image', 'children']
 
 # class CategoryFieldSerializer(ModelSerializer):
 #     class Meta:

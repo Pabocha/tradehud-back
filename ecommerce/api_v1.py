@@ -25,6 +25,7 @@ urlpatterns = [
     # ---- Client ----
     path('cart/', include('apps.carts.urls')),
     path('comments/', include('apps.comments.urls')),
+    path('favorites/', include('apps.favorites.urls')),
     # path('contacts/', include('apps.contacts.urls')),
 
     # ---- Vendor ----
@@ -44,4 +45,7 @@ urlpatterns = [
 
     # ---- Shipping ----
     path('shipping/', include('apps.shipping.urls')),
+
+    # ---- Payments ----
+    path('payments/', include('apps.payments.urls')),
 ]

@@ -36,6 +36,12 @@ class RatingSerializer(serializers.ModelSerializer):
                 "Vous ne pouvez commenter que les produits de vos propres commandes."
             )
 
+        # AJOUT — Un commentaire n'est autorisé que lorsque la commande est livrée.
+        if order_item.order.status != "delivered":
+            raise serializers.ValidationError(
+                "Vous ne pouvez commenter qu'une commande livrée."
+            )
+
         # La ligne de commande doit correspondre au produit noté.
         if order_item.product_id and order_item.product_id != product.id:
             raise serializers.ValidationError(

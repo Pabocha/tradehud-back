@@ -285,6 +285,66 @@ class OrderViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True, context=context)
         return Response(serializer.data)
 
+    @action(detail=False, methods=["get"], url_path="returnable-items")
+    def returnable_items(self, request):
+        active_statuses = ("pending", "approved", "shipped_back")
+        orders = (
+            Orders.objects.filter(customer=request.user, status="delivered")
+            .prefetch_related(
+                "order_lines__variant__product",
+                "order_lines__product",
+                "return_requests__items",
+            )
+            .order_by("-order_date")
+        )
+
+        active_order_ids = set(
+            ReturnRequest.objects.filter(order__in=orders, status__in=active_statuses)
+            .values_list("order_id", flat=True)
+            .distinct()
+        )
+
+        cancelled_statuses = ("rejected", "cancelled")
+        returned_qty_by_line = {}
+        for rr in ReturnRequest.objects.filter(
+            order__in=orders
+        ).exclude(status__in=cancelled_statuses):
+            for item in rr.items.all():
+                returned_qty_by_line[item.order_line_id] = (
+                    returned_qty_by_line.get(item.order_line_id, 0) + item.quantity
+                )
+
+        results = []
+        for order in orders:
+            if order.id in active_order_ids:
+                continue
+            for line in order.order_lines.all():
+                product = line.variant.product if line.variant else line.product
+                if not product:
+                    continue
+                remaining = line.quantity - returned_qty_by_line.get(line.id, 0)
+                if remaining <= 0:
+                    continue
+                image_url = None
+                if product.image and hasattr(product.image, "url"):
+                    image_url = request.build_absolute_uri(product.image.url)
+                results.append(
+                    {
+                        "order_id": order.id,
+                        "order_number": order.order_number,
+                        "order_line_id": line.id,
+                        "product_id": product.id,
+                        "variant_id": line.variant_id,
+                        "product_name": product.name,
+                        "product_image": image_url,
+                        "variant_label": line.variant.sku if line.variant else None,
+                        "unit_price": float(line.unit_price),
+                        "quantity": line.quantity,
+                        "returnable_quantity": remaining,
+                    }
+                )
+        return Response(results)
+
     @action(detail=False, methods=["post"], url_path="preview")
     def preview(self, request):
         serializer = OrderPreviewSerializer(data=request.data, context={"request": request})
