@@ -65,6 +65,11 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         # Verifier si l'utilisateur est actif
         if not self.user.is_active:
             raise AuthenticationFailed("Ce compte est desactive. Contactez le support.")
+        # MODIFICATION ICI — Comptes réservés à la plateforme dédiée (support/admin)
+        if self.user.type_user in ("support", "admin"):
+            raise AuthenticationFailed(
+                "Ce compte est réservé à la plateforme dédiée (support / administration)."
+            )
         return data
 
 class UserSerializer(serializers.ModelSerializer):
@@ -76,7 +81,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ('id', 'email', 'first_name', 'last_name', 'phone_number', 
                   'gender', 'date_of_birth', 'full_address', 'country',  
-                  'type_user', 'is_active', 'date_joined', 'photo', 'password')
+                  'type_user', 'support_max_chats', 'is_active', 'date_joined', 'photo', 'password')
 
     def get_photo(self, obj):
         request = self.context.get('request')

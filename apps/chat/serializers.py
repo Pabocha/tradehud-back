@@ -15,6 +15,7 @@ class ChatMemberSerializer(serializers.Serializer):
 	phone_number = serializers.CharField(allow_blank=True, required=False)
 	country_code = serializers.CharField(allow_blank=True, required=False)
 	type_user = serializers.CharField(allow_blank=True, required=False)
+	last_seen = serializers.DateTimeField(allow_null=True, required=False)
 # from .models import Messages
 
 
@@ -124,7 +125,7 @@ class ChatMessageSerializer(serializers.ModelSerializer):
 
 	class Meta:
 		model = ChatMessage
-		exclude = ['id', 'chat']
+		exclude = ['chat']
 
 	def get_userName(self, Obj):
 		if not Obj.user:

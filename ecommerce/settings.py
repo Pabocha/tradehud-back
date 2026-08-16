@@ -88,6 +88,7 @@ LOCAL_APPS = [
     'apps.contacts',        
     'apps.chat',            
     'apps.shipping',        
+    'apps.support',         
 ]
 
 # Fusion finale requise par Django
@@ -271,19 +272,23 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Channels utilise un Layer de communication pour la gestion des messages, souvent Redis
+# Channels utilise un Layer de communication pour la gestion des messages.
+# NOTE: le serveur Redis local est trop ancien (pas de commande BZPOPMIN, requise
+# par channels_redis -> Redis >= 5). On utilise donc InMemoryChannelLayer, qui
+# convient pour un seul process de dev (daphne). Pour la production/multi-process,
+# utiliser Redis >= 5.
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],  # L'URL de ton serveur Redis
-        },
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
 }
 
 # CHANNEL_LAYERS = {
 #     'default': {
-#         'BACKEND': 'channels.layers.InMemoryChannelLayer',
+#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#         'CONFIG': {
+#             "hosts": [('127.0.0.1', 6379)],  # L'URL de ton serveur Redis (>= 5.0)
+#         },
 #     },
 # }
 

@@ -40,6 +40,9 @@ urlpatterns = [
     # ---- Messaging (Tout est centralisé dans l'app) ----
     path('messaging/', include('apps.chat.urls')),
 
+    # ---- Support (tickets) ----
+    path('support/', include('apps.support.urls')),
+
     # ---- Marketing ----
     path('marketing/', include('apps.marketing.urls')),
 

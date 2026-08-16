@@ -50,7 +50,9 @@ class CustomUser(AbstractBaseUser):
     CHOICES_USER = [
         ('acheteur', 'Acheteur'),
         ('vendeur', 'Vendeur'),
-        ('deux', 'Les deux')
+        ('deux', 'Les deux'),
+        ('support', 'Support'),
+        ('admin', 'Admin')
     ]
     GENDER_CHOICES = [
         ('M', 'Masculin'),
@@ -68,10 +70,14 @@ class CustomUser(AbstractBaseUser):
     full_address = models.CharField(max_length=255, blank=True, null=True)
     city = models.CharField(max_length=255, blank=True, null=True)
     has_seller_account = models.BooleanField(default=False)
+    # MODIFICATION ICI — Capacité maximale de chats support simultanés par agent
+    support_max_chats = models.PositiveSmallIntegerField(default=3)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
+    # MODIFICATION ICI — Dernière activité connue (utilisée pour « dernière vue »)
+    last_seen = models.DateTimeField(blank=True, null=True)
     # champ soft-delete / timestamp de suppression demandée ou effective
     deleted_at = models.DateTimeField(blank=True, null=True)
 

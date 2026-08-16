@@ -8,11 +8,11 @@ from .forms import UserCreationForm, UserChangeForm
 class UserAdmin(UserAdmin):
     form = UserChangeForm
     add_form = UserCreationForm
-    list_display = ('email', 'phone_number', 'first_name', 'is_active', 'date_joined')
-    list_filter = ('is_active', 'is_staff', 'is_superuser')
+    list_display = ('email', 'phone_number', 'first_name', 'type_user', 'is_active', 'date_joined')
+    list_filter = ('is_active', 'is_staff', 'is_superuser', 'type_user')
     readonly_fields = ('date_joined',)
     fieldsets = (
-        (None, {'fields': ('password', 'email',  'type_user')}),
+        (None, {'fields': ('password', 'email',  'type_user', 'support_max_chats')}),
         ('Personal info', {'fields': ('first_name', 'last_name', 'phone_number', 'full_address', 'gender', 'country', 'date_of_birth')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser',  'groups', 'user_permissions')}),
         ('Seller account', {'fields': ('has_seller_account',)}),

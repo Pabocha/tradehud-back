@@ -1,4 +1,5 @@
 import json
+from django.utils import timezone
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from .models import ChatRoom, ChatMessage
@@ -25,6 +26,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
 			OnlineUser.objects.get(user=user).delete()
 		except:
 			pass
+
+	def setLastSeen(self, userId):
+		user = CustomUser.objects.filter(id=userId).first()
+		if not user:
+			return None
+		user.last_seen = timezone.now()
+		user.save(update_fields=["last_seen"])
+		return user.last_seen.isoformat()
 
 	def saveMessage(self, message, userId, roomId, image=None, product_id=None, variant_id=None, message_type=None):
 		userObj = CustomUser.objects.get(id=userId)
@@ -74,7 +83,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 		payload["roomId"] = roomId
 		return payload
 
-	async def sendOnlineUserList(self):
+	async def sendOnlineUserList(self, offline_last_seen=None):
 		onlineUserList = await database_sync_to_async(self.getOnlineUsers)()
 		chatMessage = {
 			'type': 'chat_message',
@@ -83,6 +92,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 				'userList': onlineUserList
 			}
 		}
+		if offline_last_seen:
+			chatMessage['message']['last_seen'] = offline_last_seen
 		await self.channel_layer.group_send('onlineUser', chatMessage)
 
 	async def connect(self):
@@ -97,13 +108,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
 			)
 		await self.channel_layer.group_add('onlineUser', self.channel_name)
 		self.user = await database_sync_to_async(self.getUser)(self.userId)
+		await database_sync_to_async(self.setLastSeen)(self.userId)
 		await database_sync_to_async(self.addOnlineUser)(self.user)
 		await self.sendOnlineUserList()
 		await self.accept()
 
 	async def disconnect(self, close_code):
-		await database_sync_to_async(self.deleteOnlineUser)(self.user)
-		await self.sendOnlineUserList()
+		last_seen = await database_sync_to_async(self.setLastSeen)(self.userId)
+		user = getattr(self, "user", None)
+		if user is not None:
+			await database_sync_to_async(self.deleteOnlineUser)(user)
+		await self.sendOnlineUserList(
+			offline_last_seen={str(self.userId): last_seen} if last_seen else None
+		)
 		for room in self.userRooms:
 			await self.channel_layer.group_discard(
 				room.roomId,
@@ -129,13 +146,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
 				return
 		elif action == 'typing':
 			chatMessage = {
-				'type': 'typing',
+				'action': 'typing',
 				'user': text_data_json['user'],
 				'roomId': text_data_json['roomId']
 			}
 		elif action == 'stop_typing':
 			chatMessage = {
-				'type': 'stop_typing',
+				'action': 'stop_typing',
 				'user': text_data_json['user'],
 				'roomId': text_data_json['roomId']
 			}

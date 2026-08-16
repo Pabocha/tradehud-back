@@ -8,7 +8,7 @@ from apps.accounts.models import UserProfile
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from rest_framework.views import APIView
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from rest_framework.generics import ListAPIView
@@ -160,7 +160,7 @@ class MessagesView(ListAPIView):
 
 class ChatMessageCreateView(APIView):
 	permission_classes = [permissions.IsAuthenticated]
-	parser_classes = [MultiPartParser, FormParser]
+	parser_classes = [MultiPartParser, FormParser, JSONParser]
 
 	def post(self, request, roomId):
 		message = request.data.get("message", "")
@@ -194,12 +194,6 @@ class ChatMessageCreateView(APIView):
 			if not product:
 				return Response({"detail": "Produit introuvable."}, status=status.HTTP_404_NOT_FOUND)
 			message_type = "product"
-
-			if not message_type:
-				if image:
-					message_type = "image"
-				else:
-					message_type = "text"
 
 			is_intro_product = (
 				message_type == "product"
@@ -236,6 +230,12 @@ class ChatMessageCreateView(APIView):
 					if not terminal_exists:
 						serializer = ChatMessageSerializer(existing, context={"request": request})
 						return Response(serializer.data, status=status.HTTP_200_OK)
+
+		if not message_type:
+			if image:
+				message_type = "image"
+			else:
+				message_type = "text"
 
 		chat_message = ChatMessage.objects.create(
 			chat=room,
@@ -280,7 +280,25 @@ class ChatMessageReadView(APIView):
 				return Response({"detail": "message_ids doit etre une liste."}, status=status.HTTP_400_BAD_REQUEST)
 			qs = qs.filter(id__in=message_ids)
 
+		message_ids_to_mark = list(qs.values_list("id", flat=True))
 		updated = qs.update(is_read=True)
+
+		if message_ids_to_mark:
+			channel_layer = get_channel_layer()
+			if channel_layer:
+				async_to_sync(channel_layer.group_send)(
+					room.roomId,
+					{
+						"type": "chat_message",
+						"message": {
+							"action": "read",
+							"roomId": room.roomId,
+							"user": request.user.id,
+							"message_ids": message_ids_to_mark,
+						},
+					},
+				)
+
 		return Response({"updated": updated}, status=status.HTTP_200_OK)
 
 
@@ -336,8 +354,9 @@ class ChatUserConversationsView(APIView):
 					"last_name": other_user.last_name,
 					"email": other_user.email,
 					"photo": _user_photo_url(other_user, request),
+					"last_seen": other_user.last_seen.isoformat() if other_user.last_seen else None,
 				},
-				"is_support": bool(getattr(other_user, "is_staff", False)),
+				"is_support": bool(getattr(other_user, "type_user", "") == "support"),
 				"shop_name": shop_name,
 				"seller_user_id": room_meta.get("seller_user_id"),
 				"active_quote_id": room_meta.get("active_quote_id"),
@@ -363,23 +382,63 @@ class SupportChatStartView(APIView):
 	def post(self, request):
 		user = request.user
 
-		# Minimal V1 routing: assign to first active staff user.
-		support_agent = (
-			User.objects
-			.filter(is_active=True, is_staff=True)
-			.exclude(id=user.id)
-			.order_by("id")
+		def _room_payload(room, agent):
+			serializer = ChatRoomSerializer(room, context={"request": request})
+			payload = serializer.data
+			payload["support_user"] = {
+				"id": agent.id,
+				"first_name": agent.first_name,
+				"last_name": agent.last_name,
+				"email": agent.email,
+				"type_user": getattr(agent, "type_user", ""),
+				"photo": _user_photo_url(agent, request),
+				"last_seen": agent.last_seen.isoformat() if agent.last_seen else None,
+			}
+			payload["room_type"] = "SUPPORT"
+			return payload
+
+		# Réutiliser le fil support existant de l'utilisateur (prioritaire sur la capacité)
+		existing_room = (
+			ChatRoom.objects
+			.annotate(num_members=Count("member"))
+			.filter(type="SUPPORT", num_members=2, member__id=user.id)
 			.first()
 		)
+		if existing_room:
+			agent = existing_room.member.exclude(id=user.id).first()
+			if agent:
+				return Response(
+					_room_payload(existing_room, agent),
+					status=status.HTTP_200_OK,
+				)
 
-		if support_agent is None:
-			support_agent = (
-				User.objects
-				.filter(is_active=True, is_superuser=True)
-				.exclude(id=user.id)
-				.order_by("id")
-				.first()
+		# MODIFICATION ICI — Routage par rôle support + capacité (agents les moins chargés)
+		candidates = (
+			User.objects
+			.filter(is_active=True, type_user='support')
+			.exclude(id=user.id)
+			.order_by('id')
+		)
+
+		def _active_support_chats(agent):
+			# Une conversation support compte comme "active" si un message
+			# a été échangé au cours des 7 derniers jours.
+			cutoff = timezone.now() - timedelta(days=7)
+			return (
+				ChatMessage.objects
+				.filter(chat__type='SUPPORT', chat__member=agent, timestamp__gte=cutoff)
+				.values('chat_id')
+				.distinct()
+				.count()
 			)
+
+		support_agent = None
+		best_load = None
+		for agent in candidates:
+			load = _active_support_chats(agent)
+			if load < agent.support_max_chats:
+				if best_load is None or load < best_load:
+					support_agent, best_load = agent, load
 
 		if support_agent is None:
 			return Response(
@@ -387,30 +446,12 @@ class SupportChatStartView(APIView):
 				status=status.HTTP_503_SERVICE_UNAVAILABLE,
 			)
 
-		room = (
-			ChatRoom.objects
-			.annotate(num_members=Count("member"))
-			.filter(type="SUPPORT", num_members=2, member__id=user.id)
-			.filter(member__id=support_agent.id)
-			.first()
+		room = ChatRoom.objects.create(
+			type="SUPPORT",
+			name=f"Support: {user.email or user.id}",
 		)
+		room.member.set([user.id, support_agent.id])
 
-		if room is None:
-			room = ChatRoom.objects.create(
-				type="SUPPORT",
-				name=f"Support: {user.email or user.id}",
-			)
-			room.member.set([user.id, support_agent.id])
-
-		serializer = ChatRoomSerializer(room, context={"request": request})
-		payload = serializer.data
-		payload["support_user"] = {
-			"id": support_agent.id,
-			"first_name": support_agent.first_name,
-			"last_name": support_agent.last_name,
-			"email": support_agent.email,
-			"type_user": getattr(support_agent, "type_user", ""),
-			"photo": _user_photo_url(support_agent, request),
-		}
-		payload["room_type"] = "SUPPORT"
-		return Response(payload, status=status.HTTP_200_OK)
+		return Response(
+			_room_payload(room, support_agent),
+			status=status.HTTP_200_OK)

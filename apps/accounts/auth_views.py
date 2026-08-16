@@ -59,6 +59,22 @@ class CookieTokenRefreshView(TokenRefreshView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
+        # MODIFICATION ICI — Comptes réservés à la plateforme dédiée (support/admin)
+        try:
+            token = RefreshToken(refresh_token)
+            user_id = token['user_id']
+            User = get_user_model()
+            user = User.objects.filter(id=user_id, is_active=True).first()
+            if user and user.type_user in ("support", "admin"):
+                response = Response(
+                    {"error": "Ce compte est réservé à la plateforme dédiée (support / administration)."},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+                response.delete_cookie(settings.REFRESH_TOKEN_COOKIE_NAME)
+                return response
+        except Exception:
+            pass
+
         request.data['refresh'] = refresh_token
         response = super().post(request, *args, **kwargs)
 
@@ -115,6 +131,10 @@ class CheckAuthView(views.APIView):
             user_id = token['user_id']
             User = get_user_model()
             user = User.objects.get(id=user_id, is_active=True)
+
+            # MODIFICATION ICI — Comptes réservés à la plateforme dédiée (support/admin)
+            if user.type_user in ("support", "admin"):
+                return Response({"authenticated": False}, status=status.HTTP_200_OK)
 
             return Response({
                 "authenticated": True,
