@@ -110,6 +110,9 @@ class ProductVariantSerializer(serializers.ModelSerializer):
             'id',
             'sku',
             'weight',
+            'length',
+            'width',
+            'height',
             'price_override',
             'stock_quantity',
             'attributes',
@@ -570,8 +573,11 @@ def build_variant_tree(product):
         leaf_payload = {
             'id': variant.id,
             'sku': variant.sku,
-            'stock': variant.stock_quantity,
-            'weight': variant.weight,
+            'stock_quantity': variant.stock_quantity,
+            'weight': float(variant.weight) if variant.weight else None,
+            'length': float(variant.length) if variant.length else None,
+            'width': float(variant.width) if variant.width else None,
+            'height': float(variant.height) if variant.height else None,
             'price_override': (
                 float(variant.price_override.amount) if variant.price_override else None
             ),
@@ -675,6 +681,7 @@ class ProductListSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'name',
+            'sku',
             'image',
             'base_price',
             'category',
@@ -694,6 +701,8 @@ class ProductListSerializer(serializers.ModelSerializer):
             'base_price_currency',
             'country_origin',
             'description',
+            'status',
+            'is_active',
         ]
 
     def get_pricing_display(self, obj):

@@ -339,17 +339,17 @@ CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
 CELERY_BEAT_SCHEDULE = {
     # Recalcul quotidien des stats à 2h du matin UTC
     'recalculate-daily-shop-statistics': {
-        'task': 'boutique.tasks.recalculate_daily_shop_statistics',
-        'schedule': crontab(hour=2, minute=0),  # 2 AM UTC
+        'task': 'apps.shops.tasks.recalculate_daily_shop_statistics',
+        'schedule': crontab(hour=16, minute=57),  # 2 AM UTC
     },
     # (Optionnel) Nettoyage hebdomadaire des anciennes stats le dimanche à 3h
     'cleanup-old-statistics': {
-        'task': 'boutique.tasks.cleanup_old_statistics',
+        'task': 'apps.shops.tasks.cleanup_old_statistics',
         'schedule': crontab(day_of_week=0, hour=3, minute=0),  # Dimanche 3 AM
     },
     # Expiration des sponsorings produits (toutes les 10 minutes)
     'deactivate-expired-sponsored-products': {
-        'task': 'produits.tasks.deactivate_expired_sponsored_products',
+        'task': 'apps.products.tasks.deactivate_expired_sponsored_products',
         'schedule': crontab(minute='*/10'),
     },
     # Expiration des promotions produits (toutes les 10 minutes)
@@ -359,22 +359,22 @@ CELERY_BEAT_SCHEDULE = {
     },
     # Expiration des quotes (toutes les 10 minutes)
     'expire-quotes': {
-        'task': 'produits.tasks.expire_quotes',
+        'task': 'apps.orders.tasks.expire_quotes',
         'schedule': crontab(minute='*/10'),
     },
     # Purge quotidienne des comptes supprimes/inactifs
     'purge-deleted-accounts': {
-        'task': 'comptes.tasks.purge_deleted_accounts_task',
+        'task': 'apps.accounts.tasks.purge_deleted_accounts_task',
         'schedule': crontab(hour=3, minute=30),
     },
     # Nettoyage periodique des OTP expires
     'cleanup-expired-otps': {
-        'task': 'comptes.tasks.cleanup_expired_otps',
+        'task': 'apps.accounts.tasks.cleanup_expired_otps',
         'schedule': crontab(minute=15, hour='*/1'),
     },
     # Verification de la coherence du stock (quotidien à 4h du matin)
     'verify-stock-consistency': {
-        'task': 'products.tasks.verify_stock_consistency_task',
+        'task': 'apps.products.tasks.verify_stock_consistency_task',
         'schedule': crontab(hour=4, minute=0),
     },
     # Renouvellement des produits en vente flash (toutes les nuits à minuit,

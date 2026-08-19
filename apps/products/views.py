@@ -234,6 +234,38 @@ class ProductViewSet(viewsets.ModelViewSet):
         product = self.get_object()
         tree = build_variant_tree(product)
         return Response(tree)
+
+    @action(detail=True, methods=['get'], url_path='available-attributes', permission_classes=[AllowAny])
+    def available_attributes(self, request, pk=None):
+        product = self.get_object()
+        from apps.categories.models import CategoryAttribute
+        from apps.products.models import Attribute, AttributeValue
+
+        category = product.category
+        if category:
+            attr_ids = CategoryAttribute.objects.filter(
+                category=category
+            ).values_list('attribute_id', flat=True)
+            attributes = Attribute.objects.filter(id__in=attr_ids)
+        else:
+            attributes = Attribute.objects.filter(is_variant=True)
+
+        structure = []
+        for attr in attributes:
+            values = AttributeValue.objects.filter(
+                attribute=attr, is_active=True
+            ).values('id', 'value', 'code', 'hex_color')
+            structure.append({
+                'id': attr.id,
+                'name': attr.name,
+                'code': attr.code,
+                'values': list(values),
+            })
+
+        return Response({
+            'structure': product.variant_structure or [],
+            'attributes': structure,
+        })
     
 
      # ACTION : filtrage par pays et popularitÃ©
@@ -505,11 +537,15 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='shop/(?P<shop_id>[^/.]+)/all', permission_classes=[IsAuthenticated])
     def shop_products(self, request, shop_id=None):
-        shop_product = self.get_queryset().filter(shop=shop_id)
-        serializer = ProductListSerializer(shop_product, many=True, context={'request': request})
-        if not shop_product.exists():
-            return Response({'message': 'Aucune boutique trouvÃ©e pour ce vendeur.'}, status=404)
-        return Response({'message': 'success', 'data': serializer.data})
+        queryset = self.get_queryset().filter(shop=shop_id)
+        if not queryset.exists():
+            return Response({'results': [], 'count': 0, 'next': None, 'previous': None})
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = ProductListSerializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+        serializer = ProductListSerializer(queryset, many=True, context={'request': request})
+        return Response(serializer.data)
 
     @action(detail=True, methods=['post'], url_path='view', permission_classes=[AllowAny])
     def increment_view(self, request, pk=None):

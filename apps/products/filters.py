@@ -80,13 +80,16 @@ class ProductFilter(django_filters.FilterSet):
                     + Coalesce(Subquery(fav_count), 0) * 5
                     + (Coalesce(Subquery(cart_count), 0) + Coalesce(Subquery(cart_variant_count), 0)) * 3
                     + F('views_count')
+                ),
+                qualifying_score=(  # score sans les vues, pour décider si le produit est "populaire"
+                    Coalesce(Subquery(recent_direct_qty), 0) * 10
+                    + Coalesce(Subquery(recent_variant_qty), 0) * 10
+                    + Coalesce(Subquery(fav_count), 0) * 5
+                    + (Coalesce(Subquery(cart_count), 0) + Coalesce(Subquery(cart_variant_count), 0)) * 3
                 )
             )
 
-            # Uniquement les produits avec un score de popularité > 0
-            queryset = queryset.filter(popularity_score__gt=0)
-
-            # Tri principal par score décroissant, puis secondaire par nouveauté pour classer les nouveaux
+            queryset = queryset.filter(qualifying_score__gt=0)
             return queryset.order_by('-popularity_score', '-date_added')
         elif value == 'sponsored':
             now = timezone.now()

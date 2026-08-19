@@ -719,6 +719,7 @@ class QuoteLineSerializer(serializers.ModelSerializer):
 
 class QuoteSerializer(serializers.ModelSerializer):
     lines = QuoteLineSerializer(many=True)
+    room_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Quote
@@ -736,6 +737,7 @@ class QuoteSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
             'lines',
+            'room_id',
         ]
         read_only_fields = [
             'user',
@@ -753,6 +755,11 @@ class QuoteSerializer(serializers.ModelSerializer):
         if value <= timezone.now():
             raise serializers.ValidationError("expires_at doit etre dans le futur.")
         return value
+
+    def get_room_id(self, obj):
+        from apps.chat.services import resolve_quote_room
+        room = resolve_quote_room(obj)
+        return room.roomId if room else None
 
     def validate(self, attrs):
         shop = attrs.get('shop') or getattr(self.instance, 'shop', None)

@@ -18,6 +18,8 @@ from .serializers import (
     ReturnRequestCreateSerializer, ReturnRequestSerializer, RefundSerializer,
 )
 from .services import is_quote_shop_owner, is_quote_participant, is_quote_expired, create_order_from_quote
+from .services import update_quote_lines_if_provided
+from apps.chat.services import notify_quote_event
 
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -372,7 +374,11 @@ class ClientQuoteViewSet(viewsets.ModelViewSet):
         shop = serializer.validated_data.get('shop')
         if hasattr(self.request.user, 'seller_account') and shop and shop.owner_id == self.request.user.seller_account.id:
             raise ValidationError("Vous ne pouvez pas creer une quote pour votre propre boutique.")
-        serializer.save(user=self.request.user, status='draft')
+        quote = serializer.save(user=self.request.user, status='draft')
+        try:
+            notify_quote_event(quote, 'requested', self.request.user)
+        except Exception:
+            pass
 
     @action(detail=False, methods=['get'], url_path='my')
     def my_quotes(self, request):
@@ -402,6 +408,10 @@ class ClientQuoteViewSet(viewsets.ModelViewSet):
         quote.status = 'accepted'
         quote.accepted_at = timezone.now()
         quote.save(update_fields=['status', 'accepted_at', 'updated_at'])
+        try:
+            notify_quote_event(quote, 'accepted', request.user)
+        except Exception:
+            pass
         return Response(self.get_serializer(quote).data)
 
     @action(detail=True, methods=['post'], url_path='counter')
@@ -411,7 +421,7 @@ class ClientQuoteViewSet(viewsets.ModelViewSet):
         if not is_quote_participant(quote, request.user):
             return Response({'error': 'Non autorise.'}, status=status.HTTP_403_FORBIDDEN)
 
-        if quote.status not in ('sent', 'countered'):
+        if quote.status not in ('draft', 'sent', 'countered'):
             return Response({'error': 'Statut invalide pour contre-proposition.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if is_quote_expired(quote):
@@ -419,8 +429,13 @@ class ClientQuoteViewSet(viewsets.ModelViewSet):
             quote.save(update_fields=['status', 'updated_at'])
             return Response({'error': 'La quote a expire.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        update_quote_lines_if_provided(quote, request)
         quote.status = 'countered'
         quote.save(update_fields=['status', 'updated_at'])
+        try:
+            notify_quote_event(quote, 'countered', request.user)
+        except Exception:
+            pass
         return Response(self.get_serializer(quote).data)
 
     @action(detail=True, methods=['post'], url_path='reject')
@@ -435,6 +450,10 @@ class ClientQuoteViewSet(viewsets.ModelViewSet):
 
         quote.status = 'rejected'
         quote.save(update_fields=['status', 'updated_at'])
+        try:
+            notify_quote_event(quote, 'rejected', request.user)
+        except Exception:
+            pass
         return Response(self.get_serializer(quote).data)
 
     @action(detail=True, methods=['post'], url_path='checkout')
@@ -496,12 +515,17 @@ class ClientQuoteViewSet(viewsets.ModelViewSet):
         except ValueError as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
+        try:
+            notify_quote_event(quote, 'converted', request.user, order=order)
+        except Exception:
+            pass
+
         return Response(
             {
                 'quote_id': quote.id,
                 'order_id': order.id,
                 'status': quote.status,
-                'total_amount': order.total_amount,
+                'total_amount': float(order.total_amount.amount),
             },
             status=status.HTTP_201_CREATED,
         )
@@ -606,13 +630,18 @@ class ClientQuoteViewSet(viewsets.ModelViewSet):
         except ValueError as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
+        try:
+            notify_quote_event(quote, 'converted', request.user, order=order)
+        except Exception:
+            pass
+
         return Response(
             {
                 'quote_id': quote.id,
                 'order_id': order.id,
                 'status': quote.status,
                 'payment_status': order.payment_status,
-                'total_amount': order.total_amount,
+                'total_amount': float(order.total_amount.amount),
             },
             status=status.HTTP_201_CREATED,
         )
@@ -684,8 +713,13 @@ class SellerQuoteViewSet(viewsets.ModelViewSet):
             quote.save(update_fields=['status', 'updated_at'])
             return Response({'error': 'La quote a expire.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        update_quote_lines_if_provided(quote, request)
         quote.status = 'sent'
         quote.save(update_fields=['status', 'updated_at'])
+        try:
+            notify_quote_event(quote, 'sent', request.user)
+        except Exception:
+            pass
         return Response(self.get_serializer(quote).data)
 
     @action(detail=True, methods=['post'], url_path='counter')
@@ -695,7 +729,7 @@ class SellerQuoteViewSet(viewsets.ModelViewSet):
         if not is_quote_participant(quote, request.user):
             return Response({'error': 'Non autorise.'}, status=status.HTTP_403_FORBIDDEN)
 
-        if quote.status not in ('sent', 'countered'):
+        if quote.status not in ('draft', 'sent', 'countered'):
             return Response({'error': 'Statut invalide pour contre-proposition.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if is_quote_expired(quote):
@@ -703,8 +737,13 @@ class SellerQuoteViewSet(viewsets.ModelViewSet):
             quote.save(update_fields=['status', 'updated_at'])
             return Response({'error': 'La quote a expire.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        update_quote_lines_if_provided(quote, request)
         quote.status = 'countered'
         quote.save(update_fields=['status', 'updated_at'])
+        try:
+            notify_quote_event(quote, 'countered', request.user)
+        except Exception:
+            pass
         return Response(self.get_serializer(quote).data)
 
     @action(detail=True, methods=['post'], url_path='reject')
@@ -719,6 +758,10 @@ class SellerQuoteViewSet(viewsets.ModelViewSet):
 
         quote.status = 'rejected'
         quote.save(update_fields=['status', 'updated_at'])
+        try:
+            notify_quote_event(quote, 'rejected', request.user)
+        except Exception:
+            pass
         return Response(self.get_serializer(quote).data)
 
     @action(detail=True, methods=['post'], url_path='payment-link')
@@ -753,8 +796,12 @@ class SellerQuoteViewSet(viewsets.ModelViewSet):
         quote.payment_link_sent_at = timezone.now()
         quote.save(update_fields=['payment_link_token', 'payment_link_expires_at', 'payment_link_sent_at', 'updated_at'])
 
-        preview_relative_url = f"/api/products/quotes/client/pay/{token}/preview/"
-        pay_relative_url = f"/api/products/quotes/client/pay/{token}/"
+        preview_relative_url = f"/api/v1/orders/quotes/client/pay/{token}/preview/"
+        pay_relative_url = f"/api/v1/orders/quotes/client/pay/{token}/"
+        try:
+            notify_quote_event(quote, 'payment_link', request.user)
+        except Exception:
+            pass
         return Response(
             {
                 'quote_id': quote.id,

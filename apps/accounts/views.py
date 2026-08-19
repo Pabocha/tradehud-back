@@ -1,16 +1,19 @@
 from rest_framework import viewsets, status, views
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
+from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import *
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from .models import UserSettings, DeletionRequest, UserProfile
+from .models import UserSettings, DeletionRequest, UserProfile, SellerAccount
 from django.utils import timezone
 from django.conf import settings
 from django.core.mail import send_mail
 from .utils import anonymize_user, hard_delete_user
 from .serializers import UserSerializer
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError
 from apps.notifications.models import Notifications
 from apps.chat.models import ChatMessage
 
@@ -77,7 +80,12 @@ class UserViewSet(viewsets.ModelViewSet):
             user = serializer.save()
             user.set_password(password)
             user.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': UserSerializer(user, context={'request': request}).data,
+            }, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
@@ -173,16 +181,33 @@ class SellerAccountViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        try:
+            serializer.save(user=self.request.user)
+        except IntegrityError:
+            raise ValidationError({'detail': 'Un compte vendeur existe deja pour cet utilisateur.'})
 
     @action(detail=False, methods=['post'])
     def create_seller_account(self, request):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(user=request.user)
-            return Response(serializer.data, status=201)
-        print(serializer.errors)
+            try:
+                serializer.save(user=request.user)
+                return Response(serializer.data, status=201)
+            except IntegrityError:
+                return Response(
+                    {'detail': 'Un compte vendeur existe deja pour cet utilisateur.'},
+                    status=status.HTTP_409_CONFLICT
+                )
         return Response(serializer.errors, status=400)
+
+    @action(detail=False, methods=['get'], url_path='me')
+    def me(self, request):
+        try:
+            seller = request.user.seller_account
+            serializer = self.get_serializer(seller)
+            return Response(serializer.data)
+        except SellerAccount.DoesNotExist:
+            return Response({'detail': 'Aucun compte vendeur.'}, status=status.HTTP_404_NOT_FOUND)
     
     
 class ShopFollowViewSet(viewsets.ViewSet):

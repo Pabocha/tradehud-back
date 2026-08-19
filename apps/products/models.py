@@ -85,6 +85,7 @@ class Products(models.Model):
             raise ValidationError("Le fichier uploadé n'est pas une image valide.")
 
     name = models.CharField(max_length=255)
+    sku = models.CharField(max_length=100, unique=True, blank=True, null=True)
     base_price = MoneyField(max_digits=15, decimal_places=2, default_currency='XOF')
     brand = models.CharField(max_length=255, blank=True, null=True)
     shop = models.ForeignKey('shops.Shops', on_delete=models.CASCADE, related_name="product")

@@ -1,7 +1,8 @@
 from django.utils import timezone
 from django.db import transaction
 from decimal import Decimal
-from .models import Orders, Quote, OrderLine
+from rest_framework.exceptions import ValidationError
+from .models import Orders, Quote, OrderLine, QuoteLine
 from apps.products.models import ProductVariant, Products
 
 
@@ -15,6 +16,26 @@ def is_quote_participant(quote, user):
 
 def is_quote_expired(quote):
     return quote.expires_at <= timezone.now()
+
+
+def replace_quote_lines(quote, lines_data):
+    from .serializers import QuoteLineSerializer
+
+    if not isinstance(lines_data, list) or not lines_data:
+        raise ValidationError({"lines": "Au moins une ligne est requise."})
+
+    serializer = QuoteLineSerializer(data=lines_data, many=True)
+    serializer.is_valid(raise_exception=True)
+
+    quote.lines.all().delete()
+    for line_data in serializer.validated_data:
+        QuoteLine.objects.create(quote=quote, **line_data)
+
+
+def update_quote_lines_if_provided(quote, request):
+    lines_data = request.data.get("lines")
+    if lines_data:
+        replace_quote_lines(quote, lines_data)
 
 
 def create_order_from_quote(
