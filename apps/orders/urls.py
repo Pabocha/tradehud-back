@@ -12,6 +12,7 @@ router.register('returns', BuyerReturnRequestViewSet, basename='return-request')
 seller_router = DefaultRouter()
 seller_router.register('quotes/seller', SellerQuoteViewSet, basename='seller-quote')
 seller_router.register('returns/staff', SellerReturnRequestViewSet, basename='staff-return-request')
+seller_router.register('orders', SellerOrderViewSet, basename='seller-order')
 
 urlpatterns = [
     path('create/', BuyerOrderViewSet.as_view({'post': 'create'}), name='order-create'),

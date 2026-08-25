@@ -15,6 +15,7 @@ class Orders(models.Model):
     CHOICES_STATUS = [
         ('pending', 'En attente'), 
         ('processing', 'En traitement'), 
+        ('deposited', 'Déposée en entrepôt'),
         ('shipped', 'Expédiée'), 
         ('in_transit', 'En cours de livraison'),
         ('delivered', 'Livrée'), 

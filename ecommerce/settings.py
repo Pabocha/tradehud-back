@@ -89,6 +89,7 @@ LOCAL_APPS = [
     'apps.chat',            
     'apps.shipping',        
     'apps.support',         
+    'apps.wallets',         
 ]
 
 # Fusion finale requise par Django
@@ -160,6 +161,12 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:8000"
 ]
+
+# ---------------------------------------------------------------------------
+# Portefeuille vendeur
+# ---------------------------------------------------------------------------
+PLATFORM_COMMISSION_PERCENT = 10   # % prélevé au crédit (apres livraison payee)
+WITHDRAWAL_MIN_AMOUNT = 5000       # montant minimum de retrait en XOF
 
 # ---------------------------------------------------------------------------
 # Cookie-based Refresh Token

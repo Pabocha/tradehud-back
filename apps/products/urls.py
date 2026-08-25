@@ -5,7 +5,7 @@ from .views.shared import (
     ProductAttributeValuesView, ProductsByCategoryView, countries_with_products,
 )
 from .views.seller import (
-    SellerProductViewSet, SellerProductGalleryViewSet, SellerStockMovementsView,
+    SellerProductViewSet, SellerProductGalleryViewSet,
 )
 from .api_views import (
     ProductSearchView, ProductSearchByShopView, ProductSearchAutocompleteView,
@@ -47,9 +47,6 @@ urlpatterns = [
     path('<int:product_pk>/gallery/bulk-delete/', seller_gallery_bulk_delete, name='seller-product-gallery-bulk-delete'),
     path('<int:product_pk>/gallery/reorder/', seller_gallery_reorder, name='seller-product-gallery-reorder'),
     path('<int:product_pk>/gallery/delete-main-image/', seller_gallery_delete_main, name='seller-product-gallery-delete-main-image'),
-
-    # --- Vendeur : Mouvements de stock ---
-    path('seller/stock/', SellerStockMovementsView.as_view({'get': 'stock_movements', 'post': 'stock_movements'}), name='seller-stock'),
 ]
 
 # Les actions vendeur (variants, sponsor, price-tiers, promotions) sont sur

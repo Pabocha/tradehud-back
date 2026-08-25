@@ -12,6 +12,7 @@ from ..serializers import OrderSerializer, QuoteSerializer, ReturnRequestSeriali
 from ..services import is_quote_shop_owner, is_quote_participant, is_quote_expired, update_quote_lines_if_provided
 from apps.notifications.notifications import create_notification_if_allowed
 from apps.chat.services import notify_quote_event
+from apps.wallets.services import release_order_funds
 
 
 class SellerOrderViewSet(viewsets.ModelViewSet):
@@ -44,40 +45,128 @@ class SellerOrderViewSet(viewsets.ModelViewSet):
         context = self.get_serializer_context()
 
         if user.is_staff or user.is_superuser:
+            queryset = Orders.objects.all()
             if shop_id:
                 try:
                     shop_id_int = int(shop_id)
                 except (TypeError, ValueError):
                     return Response({"error": "shop_id invalide."}, status=status.HTTP_400_BAD_REQUEST)
-                queryset = Orders.objects.filter(order_lines__shop_id=shop_id_int).distinct().order_by("-order_date")
+                queryset = queryset.filter(order_lines__shop_id=shop_id_int).distinct()
+                context["shop_id"] = shop_id_int
+        else:
+            if not hasattr(user, "seller_account"):
+                return Response({"error": "Acces reserve aux proprietaires de boutiques."}, status=status.HTTP_403_FORBIDDEN)
+
+            owned_shop_ids = list(user.seller_account.shops.values_list("id", flat=True))
+            if not owned_shop_ids:
+                queryset = Orders.objects.none()
+            elif shop_id:
+                try:
+                    shop_id_int = int(shop_id)
+                except (TypeError, ValueError):
+                    return Response({"error": "shop_id invalide."}, status=status.HTTP_400_BAD_REQUEST)
+                if shop_id_int not in owned_shop_ids:
+                    return Response({"error": "Vous ne pouvez voir que les commandes de vos propres boutiques."}, status=status.HTTP_403_FORBIDDEN)
+                queryset = Orders.objects.filter(order_lines__shop_id=shop_id_int).distinct()
                 context["shop_id"] = shop_id_int
             else:
-                queryset = Orders.objects.all().order_by("-order_date")
-            serializer = self.get_serializer(queryset, many=True, context=context)
-            return Response(serializer.data)
+                queryset = Orders.objects.filter(order_lines__shop_id__in=owned_shop_ids).distinct()
+                context["shop_ids"] = owned_shop_ids
 
-        if not hasattr(user, "seller_account"):
-            return Response({"error": "Acces reserve aux proprietaires de boutiques."}, status=status.HTTP_403_FORBIDDEN)
+        status_param = request.query_params.get("status")
+        if status_param:
+            queryset = queryset.filter(status=status_param)
 
-        owned_shop_ids = list(user.seller_account.shops.values_list("id", flat=True))
-        if not owned_shop_ids:
-            return Response([], status=status.HTTP_200_OK)
+        payment_status_param = request.query_params.get("payment_status")
+        if payment_status_param:
+            queryset = queryset.filter(payment_status=payment_status_param)
 
-        if shop_id:
-            try:
-                shop_id_int = int(shop_id)
-            except (TypeError, ValueError):
-                return Response({"error": "shop_id invalide."}, status=status.HTTP_400_BAD_REQUEST)
-            if shop_id_int not in owned_shop_ids:
-                return Response({"error": "Vous ne pouvez voir que les commandes de vos propres boutiques."}, status=status.HTTP_403_FORBIDDEN)
-            queryset = Orders.objects.filter(order_lines__shop_id=shop_id_int).distinct().order_by("-order_date")
-            context["shop_id"] = shop_id_int
-        else:
-            queryset = Orders.objects.filter(order_lines__shop_id__in=owned_shop_ids).distinct().order_by("-order_date")
-            context["shop_ids"] = owned_shop_ids
+        search = request.query_params.get("search")
+        if search:
+            queryset = queryset.filter(
+                DQ(order_number__icontains=search)
+                | DQ(shipping_first_name__icontains=search)
+                | DQ(shipping_last_name__icontains=search)
+                | DQ(shipping_phone_number__icontains=search)
+                | DQ(customer__email__icontains=search)
+            )
 
+        queryset = queryset.select_related("customer").prefetch_related("order_lines").order_by("-order_date")
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True, context=context)
+            return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(queryset, many=True, context=context)
         return Response(serializer.data)
+
+    @action(detail=True, methods=["patch", "post"], url_path="set-status")
+    def set_status(self, request, pk=None):
+        order = self.get_object()
+        user = request.user
+
+        new_status = request.data.get("status")
+        if not new_status:
+            return Response({"error": "Champ 'status' requis."}, status=status.HTTP_400_BAD_REQUEST)
+
+        current = order.status
+
+        if user.is_staff or user.is_superuser:
+            allowed_transitions = {
+                "pending": {"processing", "deposited", "cancelled"},
+                "processing": {"deposited", "shipped", "cancelled"},
+                "deposited": {"shipped", "in_transit", "delivered", "cancelled"},
+                "shipped": {"in_transit", "delivered"},
+                "in_transit": {"delivered"},
+            }
+            allowed = allowed_transitions.get(current, set())
+        else:
+            if not hasattr(user, "seller_account"):
+                return Response({"error": "Non autorise."}, status=status.HTTP_403_FORBIDDEN)
+            owned_shop_ids = list(user.seller_account.shops.values_list("id", flat=True))
+            if not order.order_lines.filter(shop_id__in=owned_shop_ids).exists():
+                return Response(
+                    {"error": "Vous ne pouvez modifier que les commandes de vos propres boutiques."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            # Le vendeur prepare la commande puis la depose a l'entrepot ;
+            # la suite du cycle (expedition, livraison) est geree par la plateforme.
+            seller_transitions = {
+                "pending": {"deposited", "cancelled"},
+                "processing": {"deposited", "cancelled"},
+            }
+            allowed = seller_transitions.get(current, set())
+
+        if new_status == current:
+            return Response({"status": current}, status=status.HTTP_200_OK)
+        if new_status not in allowed:
+            return Response(
+                {"error": "Transition de statut non autorisee.", "from": current, "to": new_status},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order.status = new_status
+        update_fields = ["status"]
+        if new_status == "shipped" and not order.shipping_date:
+            order.shipping_date = timezone.now()
+            update_fields.append("shipping_date")
+
+        with transaction.atomic():
+            order.save(update_fields=update_fields)
+            if new_status == "delivered" and order.payment_status == "paid":
+                release_order_funds(order)
+
+        status_label = dict(Orders.CHOICES_STATUS).get(new_status, new_status)
+        try:
+            create_notification_if_allowed(
+                user=order.customer,
+                notification_type="order",
+                title="Mise a jour commande",
+                message=f"Le statut de votre commande #{order.order_number} est passe a '{status_label}'.",
+            )
+        except Exception:
+            pass
+        return Response({"status": order.status}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["patch"], url_path="payment-status")
     def update_payment_status(self, request, pk=None):

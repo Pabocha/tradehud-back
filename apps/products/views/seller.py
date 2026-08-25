@@ -235,6 +235,36 @@ class SellerProductViewSet(viewsets.ModelViewSet):
             promotion.delete()
             return Response({"message": "Promotion deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=True, methods=['get', 'post'], url_path='stock-movements')
+    def stock_movements(self, request, pk=None):
+        product = self.check_product_ownership(request, pk)
+        if request.method == 'GET':
+            variant_id = request.query_params.get('variant_id')
+            movements = StockMovement.objects.filter(product=product)
+            if variant_id:
+                movements = movements.filter(variant_id=variant_id)
+            movements = movements.select_related('variant', 'created_by')[:50]
+            serializer = StockMovementSerializer(movements, many=True)
+            return Response(serializer.data)
+
+        serializer = StockAdjustmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        from apps.products.services.stock import record_stock_movement
+        try:
+            movement = record_stock_movement(
+                product=product,
+                movement_type=data['movement_type'],
+                quantity=data['quantity'],
+                reference_type='manual',
+                reference_id=data.get('reference_id'),
+                note=data.get('note'),
+                created_by=request.user,
+            )
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(StockMovementSerializer(movement).data, status=status.HTTP_201_CREATED)
+
 
 class SellerProductGalleryViewSet(viewsets.ViewSet):
     """Gestion de la galerie images — réservé au vendeur propriétaire."""
@@ -318,41 +348,4 @@ class SellerProductGalleryViewSet(viewsets.ViewSet):
         )
 
 
-class SellerStockMovementsView(viewsets.ViewSet):
-    """Mouvements de stock — réservé au vendeur propriétaire du produit."""
-    permission_classes = [IsAuthenticated, IsSeller]
 
-    def _get_product(self, pk):
-        product = get_object_or_404(Products, pk=pk)
-        self.check_object_permissions(self.request, product)
-        return product
-
-    @action(detail=True, methods=['get', 'post'], url_path='stock-movements')
-    def stock_movements(self, request, pk=None):
-        product = self._get_product(pk)
-        if request.method == 'GET':
-            variant_id = request.query_params.get('variant_id')
-            movements = StockMovement.objects.filter(product=product)
-            if variant_id:
-                movements = movements.filter(variant_id=variant_id)
-            movements = movements.select_related('variant', 'created_by')[:50]
-            serializer = StockMovementSerializer(movements, many=True)
-            return Response(serializer.data)
-
-        serializer = StockAdjustmentSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        from apps.products.services.stock import record_stock_movement
-        try:
-            movement = record_stock_movement(
-                product=product,
-                movement_type=data['movement_type'],
-                quantity=data['quantity'],
-                reference_type='manual',
-                reference_id=data.get('reference_id'),
-                note=data.get('note'),
-                created_by=request.user,
-            )
-        except ValueError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(StockMovementSerializer(movement).data, status=status.HTTP_201_CREATED)

@@ -54,4 +54,7 @@ urlpatterns = [
 
     # ---- Payments ----
     path('payments/', include('apps.payments.urls')),
+
+    # ---- Portefeuille vendeur ----
+    path('wallets/', include('apps.wallets.urls')),
 ]

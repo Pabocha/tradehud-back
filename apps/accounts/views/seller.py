@@ -22,7 +22,7 @@ class SellerAccountViewSet(viewsets.ModelViewSet):
         except IntegrityError:
             raise ValidationError({'detail': 'Un compte vendeur existe deja pour cet utilisateur.'})
 
-    @action(detail=False, methods=['post'], url_path='create-seller-account')
+    @action(detail=False, methods=['post'], url_path='create_seller_account')
     def create_seller_account(self, request):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
