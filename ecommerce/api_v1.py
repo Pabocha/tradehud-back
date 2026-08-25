@@ -22,22 +22,25 @@ urlpatterns = [
     path('accounts/', include('apps.accounts.urls')),
     path('notifications/', include('apps.notifications.urls')),
 
+    # ---- Products (public + buyer + seller routes inside app) ----
+    path('products/', include('apps.products.urls')),
+
+    # ---- Shops (public + seller routes inside app) ----
+    path('shop/', include('apps.shops.urls')),
+
+    # ---- Categories ----
+    path('categories/', include('apps.categories.urls')),
+    path('restaurant/', include('apps.restaurant.urls')),
+
     # ---- Client ----
     path('cart/', include('apps.carts.urls')),
     path('comments/', include('apps.comments.urls')),
     path('favorites/', include('apps.favorites.urls')),
-    # path('contacts/', include('apps.contacts.urls')),
 
-    # ---- Vendor ----
-    path('products/', include('apps.products.urls')),
-    path('shop/', include('apps.shops.urls')),
-    path('categories/', include('apps.categories.urls')),
-    path('restaurant/', include('apps.restaurant.urls')),
-
-    # ---- Orders ----
+    # ---- Orders (buyer + seller routes inside app) ----
     path('orders/', include('apps.orders.urls')),
 
-    # ---- Messaging (Tout est centralisé dans l'app) ----
+    # ---- Messaging ----
     path('messaging/', include('apps.chat.urls')),
 
     # ---- Support (tickets) ----

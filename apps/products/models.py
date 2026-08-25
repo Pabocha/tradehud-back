@@ -222,7 +222,7 @@ class ProductVariant(models.Model):
     height = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Hauteur en cm")
     price_override = MoneyField(max_digits=15, decimal_places=2, default_currency='XOF', null=True, blank=True)
     stock_quantity = models.PositiveIntegerField(default=1)
-    # Attributs personnalisÃ©s (non-officiels) saisis par l'utilisateur
+    # Attributs personnalisés (non-officiels) saisis par l'utilisateur
     custom_attributes = models.JSONField(default=list, blank=True)
     attributes = models.ManyToManyField(AttributeValue)
 

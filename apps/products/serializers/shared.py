@@ -1,5 +1,9 @@
 from rest_framework import serializers
-from .models import *
+from apps.products.models import (
+    Colors, ProductPriceTier, ProductPromotion, AttributeValue,
+    ProductVariant, Products, GalerieImages,
+    RecentlyViewedProduct, StockMovement, ProductComparison,
+)
 from django.db.models import Avg, Count
 from djmoney.contrib.django_rest_framework.fields import MoneyField
 from apps.categories.models import Categories, CategoryAttribute
@@ -7,7 +11,7 @@ from apps.comments.models import Ratings
 from django.utils import timezone
 import json
 from taggit.serializers import TagListSerializerField
-from .documents import ProductDocument
+from apps.products.documents import ProductDocument
 from ecommerce.validators import validate_image_file
 
 
@@ -18,16 +22,14 @@ class ColorSerializer(serializers.ModelSerializer):
 
 
 class ProductPriceTierSerializer(serializers.ModelSerializer):
-    """Serializer pour les paliers de prix (ProductPriceTier)"""
     price = MoneyField(max_digits=15, decimal_places=2)
-    
+
     class Meta:
         model = ProductPriceTier
         fields = ['id', 'product', 'min_quantity', 'max_quantity', 'price']
-        read_only_fields = ['id', 'product']  # Le produit est assigné automatiquement
-    
+        read_only_fields = ['id', 'product']
+
     def create(self, validated_data):
-        """Assigne le produit depuis le contexte"""
         product = self.context.get('product')
         if not product:
             raise serializers.ValidationError("Product context is required.")
@@ -36,7 +38,6 @@ class ProductPriceTierSerializer(serializers.ModelSerializer):
 
 
 class ProductPromotionSerializer(serializers.ModelSerializer):
-    """Serializer pour les promotions de produit (ProductPromotion)."""
     promo_price = MoneyField(max_digits=15, decimal_places=2)
 
     class Meta:
@@ -53,16 +54,12 @@ class ProductPromotionSerializer(serializers.ModelSerializer):
 
         if not product:
             raise serializers.ValidationError("Product context is required.")
-
         if start_at and end_at and start_at >= end_at:
             raise serializers.ValidationError({"end_at": "end_at doit etre apres start_at."})
-
         if start_at and end_at and end_at <= timezone.now():
             raise serializers.ValidationError({"end_at": "end_at doit etre dans le futur."})
-
         if promo_price and product.base_price and promo_price >= product.base_price:
             raise serializers.ValidationError({"promo_price": "Le prix promo doit etre inferieur au prix de base."})
-
         return attrs
 
     def create(self, validated_data):
@@ -73,7 +70,6 @@ class ProductPromotionSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-
 class AttributeValueSerializer(serializers.ModelSerializer):
     attribute_name = serializers.CharField(source="attribute.name", read_only=True)
     attribute_code = serializers.CharField(source="attribute.code", read_only=True)
@@ -82,42 +78,25 @@ class AttributeValueSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttributeValue
         fields = [
-            "id",
-            "attribute_id",
-            "attribute_code",
-            "attribute_name",
-            "value",
-            "code",
-            "hex_color",
+            "id", "attribute_id", "attribute_code", "attribute_name",
+            "value", "code", "hex_color",
         ]
 
 
 class ProductVariantSerializer(serializers.ModelSerializer):
-    """Serializer pour ProductVariant (nested dans Product CRUD)."""
     attributes = AttributeValueSerializer(many=True, read_only=True)
     attribute_value_ids = serializers.PrimaryKeyRelatedField(
-        queryset=AttributeValue.objects.all(),
-        many=True,
-        write_only=True,
-        required=False,
+        queryset=AttributeValue.objects.all(), many=True, write_only=True, required=False,
     )
     custom_attributes = serializers.JSONField(required=False)
     price_override = MoneyField(max_digits=15, decimal_places=2, required=False)
 
-    class Meta: 
+    class Meta:
         model = ProductVariant
         fields = [
-            'id',
-            'sku',
-            'weight',
-            'length',
-            'width',
-            'height',
-            'price_override',
-            'stock_quantity',
-            'attributes',
-            'attribute_value_ids',
-            'custom_attributes',
+            'id', 'sku', 'weight', 'length', 'width', 'height',
+            'price_override', 'stock_quantity', 'attributes',
+            'attribute_value_ids', 'custom_attributes',
         ]
         read_only_fields = ['id', 'sku']
 
@@ -129,7 +108,6 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         if not attrs:
             raise serializers.ValidationError("Chaque variante doit avoir au moins un attribut.")
         product = validated_data.pop('product', None)
-        # product must be provided by parent serializer via context or passed data
         variant = ProductVariant.objects.create(**validated_data, product=product)
         if attrs:
             variant.attributes.set(attrs)
@@ -151,22 +129,13 @@ class ProductVariantSerializer(serializers.ModelSerializer):
 
 
 class VariantTreeSerializer(serializers.Serializer):
-    """
-    Entrée dynamique imbriquée pour créer des variantes.
-    Exemple:
-    {
-      "structure": ["color", "size"],
-      "variants": [
-        {"value": "Rouge", "children": [{"value": "M", "stock": 5}, {"value": "XL", "stock": 2}]}
-      ]
-    }
-    """
     structure = serializers.ListField(child=serializers.JSONField(), required=True)
     variants = serializers.ListField(child=serializers.JSONField(), required=True)
 
     def _resolve_attribute(self, raw):
         if raw is None or raw == '':
             raise serializers.ValidationError("Attribut manquant.")
+        from apps.products.models import Attribute
         if isinstance(raw, dict):
             if 'id' in raw:
                 qs = Attribute.objects.filter(id=raw['id'])
@@ -184,7 +153,6 @@ class VariantTreeSerializer(serializers.Serializer):
                 qs = Attribute.objects.filter(name__iexact=raw)
         else:
             raise serializers.ValidationError("Format d'attribut invalide.")
-
         attribute = qs.first()
         if not attribute:
             raise serializers.ValidationError("Attribut introuvable.")
@@ -210,28 +178,23 @@ class VariantTreeSerializer(serializers.Serializer):
                 qs = AttributeValue.objects.filter(value__iexact=raw, attribute=attribute)
         else:
             raise serializers.ValidationError("Format de valeur d'attribut invalide.")
-
         value = qs.first()
         if not value:
-            raise serializers.ValidationError(
-                f"Valeur d'attribut introuvable pour '{attribute.name}'."
-            )
+            raise serializers.ValidationError(f"Valeur d'attribut introuvable pour '{attribute.name}'.")
         return value
 
     def validate(self, attrs):
+        from apps.products.models import Attribute
         product = self.context.get('product')
         if not product:
             raise serializers.ValidationError("Product context is required.")
-
         structure = attrs.get('structure') or []
         if not structure:
             raise serializers.ValidationError("La structure des variantes est requise.")
-
         attributes = [self._resolve_attribute(a) for a in structure]
         attr_ids = [a.id for a in attributes]
         if len(set(attr_ids)) != len(attr_ids):
             raise serializers.ValidationError("La structure contient des attributs en doublon.")
-
         if product.category:
             allowed = set(
                 CategoryAttribute.objects.filter(category=product.category)
@@ -243,11 +206,9 @@ class VariantTreeSerializer(serializers.Serializer):
                         raise serializers.ValidationError(
                             f"L'attribut '{a.name}' n'est pas autorisé pour cette catégorie."
                         )
-
         variants = attrs.get('variants') or []
         if not variants:
             raise serializers.ValidationError("Les variantes sont requises.")
-
         combinations = []
         seen = set()
 
@@ -256,30 +217,23 @@ class VariantTreeSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Le champ 'variants' doit être une liste.")
             if depth >= len(attributes):
                 raise serializers.ValidationError("Structure de variantes invalide.")
-
             attribute = attributes[depth]
             for node in nodes:
                 if not isinstance(node, dict):
                     raise serializers.ValidationError("Format de variante invalide.")
-
                 value_raw = node.get('value')
                 value = self._resolve_attribute_value(attribute, value_raw)
                 next_values = current_values + [value]
-
                 children = node.get('children', [])
                 is_leaf = depth == len(attributes) - 1
-
                 if is_leaf:
                     if children:
-                        raise serializers.ValidationError(
-                            "Une feuille de variante ne doit pas contenir de sous-variantes."
-                        )
+                        raise serializers.ValidationError("Une feuille de variante ne doit pas contenir de sous-variantes.")
                     stock = node.get('stock') if 'stock' in node else node.get('stock_quantity')
                     sku = node.get('sku')
                     weight = node.get('weight')
                     price_override = node.get('price_override')
                     custom_attributes = node.get('custom_attributes')
-
                     if stock is not None:
                         try:
                             stock = int(stock)
@@ -287,92 +241,52 @@ class VariantTreeSerializer(serializers.Serializer):
                             raise serializers.ValidationError("Le stock doit être un entier.")
                         if stock < 0:
                             raise serializers.ValidationError("Le stock ne peut pas être négatif.")
-
                     key = tuple(v.id for v in next_values)
                     if key in seen:
-                        raise serializers.ValidationError(
-                            "Combinaison d'attributs en doublon dans la requête."
-                        )
+                        raise serializers.ValidationError("Combinaison d'attributs en doublon dans la requête.")
                     seen.add(key)
-
                     combinations.append({
                         'attribute_values': next_values,
-                        'stock_quantity': stock,
-                        'sku': sku,
-                        'weight': weight,
-                        'price_override': price_override,
-                        'custom_attributes': custom_attributes,
+                        'stock_quantity': stock, 'sku': sku, 'weight': weight,
+                        'price_override': price_override, 'custom_attributes': custom_attributes,
                     })
                 else:
                     if not children:
-                        raise serializers.ValidationError(
-                            "Chaque valeur doit avoir des sous-variantes."
-                        )
+                        raise serializers.ValidationError("Chaque valeur doit avoir des sous-variantes.")
                     walk(children, depth + 1, next_values)
 
         walk(variants, 0, [])
-
         attrs['resolved_attributes'] = attributes
         attrs['combinations'] = combinations
         return attrs
 
 
 def compute_pricing_display(obj):
-    """
-    Synthétise la logique de prix pour le frontend.
-    Priorité : promotion active > paliers > prix de base.
-    """
     from django.utils.timezone import now
-
     base_price_amount = float(obj.base_price.amount)
     currency = str(obj.base_price.currency)
-
-    # 1️⃣ Promotion active
-    active_promo = obj.promotions.filter(
-        is_active=True,
-        start_at__lte=now(),
-        end_at__gte=now()
-    ).first()
-
+    active_promo = obj.promotions.filter(is_active=True, start_at__lte=now(), end_at__gte=now()).first()
     if active_promo:
         promo_price_amount = float(active_promo.promo_price.amount)
         return {
             'type': 'promo',
             'display_text': f'{int(round(promo_price_amount))} {currency}',
-            'base_price': base_price_amount,
-            'promo_price': promo_price_amount,
-            'should_strike_base': True,
-            'currency': currency,
-            'promo_details': {
-                'start_at': active_promo.start_at.isoformat(),
-                'end_at': active_promo.end_at.isoformat()
-            }
+            'base_price': base_price_amount, 'promo_price': promo_price_amount,
+            'should_strike_base': True, 'currency': currency,
+            'promo_details': {'start_at': active_promo.start_at.isoformat(), 'end_at': active_promo.end_at.isoformat()},
         }
-
-    # 2️⃣ Paliers de prix
     price_tiers = obj.price_tiers.all().order_by('min_quantity')
     if price_tiers.exists():
         min_price = float(price_tiers.first().price.amount)
         max_price = float(price_tiers.last().price.amount)
         max_price = max(max_price, base_price_amount)
-
         return {
             'type': 'tiers',
             'display_text': f'{int(round(min_price))} - {int(round(max_price))} {currency}',
-            'min_price': min_price,
-            'max_price': max_price,
-            'base_price': base_price_amount,
-            'currency': currency,
-            'tiers_count': price_tiers.count()
+            'min_price': min_price, 'max_price': max_price,
+            'base_price': base_price_amount, 'currency': currency, 'tiers_count': price_tiers.count(),
         }
-
-    # 3️⃣ Prix de base
-    return {
-        'type': 'base',
-        'display_text': f'{int(round(base_price_amount))} {currency}',
-        'price': base_price_amount,
-        'currency': currency
-    }
+    return {'type': 'base', 'display_text': f'{int(round(base_price_amount))} {currency}', 'price': base_price_amount, 'currency': currency}
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -383,53 +297,34 @@ class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     shop_name = serializers.CharField(source='shop.name', read_only=True)
     shop_is_verified = serializers.BooleanField(source='shop.is_verifted', read_only=True)
-    category = serializers.PrimaryKeyRelatedField(
-        queryset=Categories.objects.all(),
-    )
+    category = serializers.PrimaryKeyRelatedField(queryset=Categories.objects.all())
     total_stock = serializers.IntegerField(read_only=True)
     attribute_display = serializers.SerializerMethodField()
-    # ===== NOUVEAUX CHAMPS DE PRIX =====
     price_tiers = serializers.SerializerMethodField()
     active_promotions = serializers.SerializerMethodField()
     unit_price_for_quantity = serializers.SerializerMethodField()
     pricing_display = serializers.SerializerMethodField()
-    # Variants read-only (créés via un endpoint dédié)
     variants = ProductVariantSerializer(many=True, read_only=True)
 
-        
     def to_internal_value(self, data):
-
-        # Nettoyage de data pour transformer les listes à un seul élément en simple valeur
-        data = {
-            key: value[0] if isinstance(value, list) and len(value) == 1 else value
-            for key, value in data.items()
-        }
-
-        # Parser 'sizes' si c'est une chaîne JSON
+        data = {key: value[0] if isinstance(value, list) and len(value) == 1 else value for key, value in data.items()}
         sizes = data.get('sizes')
         if sizes and isinstance(sizes, str):
             try:
                 data['sizes'] = json.loads(sizes)
             except Exception:
                 raise serializers.ValidationError({'sizes': 'Format JSON invalide.'})
-
-        # Parser 'features' si c'est une chaîne JSON
         features = data.get('features')
         if features and isinstance(features, str):
             try:
                 data['features'] = json.loads(features)
             except Exception:
                 pass
-
         return super().to_internal_value(data)
-    
+
     class Meta:
         model = Products
         fields = '__all__'
-        # Exclude color_ids from being part of "__all__" output
-        # extra_kwargs = {
-        #     'color': {'read_only': True}
-        # }
 
     def get_attribute_display(self, obj):
         raw = getattr(obj, 'attribute', None) or {}
@@ -440,7 +335,6 @@ class ProductSerializer(serializers.ModelSerializer):
                 raw = {}
         if not raw:
             return {}
-
         category = getattr(obj, 'category', None)
         fields_config = getattr(category, 'fields_config', None) or []
         if isinstance(fields_config, str):
@@ -448,52 +342,19 @@ class ProductSerializer(serializers.ModelSerializer):
                 fields_config = json.loads(fields_config)
             except json.JSONDecodeError:
                 fields_config = []
-
-        name_to_label = {
-            f['name']: f.get('label', f['name'])
-            for f in fields_config
-            if isinstance(f, dict) and 'name' in f
-        }
-
-        return {
-            name_to_label.get(key, key): value
-            for key, value in raw.items()
-        }
+        name_to_label = {f['name']: f.get('label', f['name']) for f in fields_config if isinstance(f, dict) and 'name' in f}
+        return {name_to_label.get(key, key): value for key, value in raw.items()}
 
     def get_price_tiers(self, obj):
-        """Expose les paliers de prix disponibles pour le B2B"""
         tiers = obj.price_tiers.all().values('id', 'min_quantity', 'max_quantity', 'price')
-        return [
-            {   'id': tier['id'],
-                'min_quantity': tier['min_quantity'],
-                'max_quantity': tier['max_quantity'],
-                'price': float(tier['price']) if tier['price'] else 0.0
-            }
-            for tier in tiers
-        ]
+        return [{'id': t['id'], 'min_quantity': t['min_quantity'], 'max_quantity': t['max_quantity'], 'price': float(t['price']) if t['price'] else 0.0} for t in tiers]
 
     def get_active_promotions(self, obj):
-        """Expose les promotions actives (valides à l'instant T)"""
         from django.utils.timezone import now
-        promotions = obj.promotions.filter(
-            is_active=True,
-            start_at__lte=now(),
-            end_at__gte=now()
-        ).values('promo_price', 'start_at', 'end_at')
-        return [
-            {
-                'price': float(promo['promo_price']) if promo['promo_price'] else 0.0,
-                'start_at': promo['start_at'].isoformat(),
-                'end_at': promo['end_at'].isoformat()
-            }
-            for promo in promotions
-        ]
+        promotions = obj.promotions.filter(is_active=True, start_at__lte=now(), end_at__gte=now()).values('promo_price', 'start_at', 'end_at')
+        return [{'price': float(p['promo_price']) if p['promo_price'] else 0.0, 'start_at': p['start_at'].isoformat(), 'end_at': p['end_at'].isoformat()} for p in promotions]
 
     def get_unit_price_for_quantity(self, obj):
-        """
-        Retourne le prix unitaire pour une quantité donnée.
-        Utilise le query param 'quantity' si disponible, sinon défaut 1.
-        """
         request = self.context.get('request')
         quantity = 1
         if request and request.query_params.get('quantity'):
@@ -501,50 +362,34 @@ class ProductSerializer(serializers.ModelSerializer):
                 quantity = int(request.query_params.get('quantity'))
             except (ValueError, TypeError):
                 quantity = 1
-        
         unit_price = obj.get_unit_price(quantity)
-        return {
-            'quantity': quantity,
-            'unit_price': float(unit_price.amount),
-            'currency': str(unit_price.currency)
-        }
+        return {'quantity': quantity, 'unit_price': float(unit_price.amount), 'currency': str(unit_price.currency)}
 
     def get_pricing_display(self, obj):
-        """Synthétise la logique de prix pour le frontend (voir compute_pricing_display)."""
         return compute_pricing_display(obj)
 
     def create(self, validated_data):
         tags = validated_data.pop('tags', [])
-
         instance = super().create(validated_data)
         if tags:
-            # Si tags est une chaîne (string), on split, sinon on garde la liste
-            if isinstance(tags, str):
-                tag_list = [tag.strip() for tag in tags.split(',')]
-            else:
-                tag_list = tags
-            instance.tags.set(tag_list)  # ✅ Bon
+            tag_list = [tag.strip() for tag in tags.split(',')] if isinstance(tags, str) else tags
+            instance.tags.set(tag_list)
         return instance
 
     def update(self, instance, validated_data):
         tags = validated_data.pop('tags', None)
-
         instance = super().update(instance, validated_data)
         if tags is not None:
-            if isinstance(tags, str):
-                tag_list = [tag.strip() for tag in tags.split(',')]
-            else:
-                tag_list = tags
+            tag_list = [tag.strip() for tag in tags.split(',')] if isinstance(tags, str) else tags
             instance.tags.set(tag_list)
         return instance
 
 
 def build_variant_tree(product):
-    """Reconstruit un arbre de variantes à partir des variantes plates et de variant_structure."""
+    from apps.products.models import Attribute
     structure = product.variant_structure or []
     if not structure:
         return None
-
     attr_codes = []
     for item in structure:
         if isinstance(item, dict):
@@ -553,7 +398,6 @@ def build_variant_tree(product):
                 attr_codes.append(code)
         elif isinstance(item, str):
             attr_codes.append(item)
-
     if not attr_codes:
         return None
 
@@ -579,19 +423,13 @@ def build_variant_tree(product):
     for variant in variants:
         values = [pick_value(variant, code) for code in attr_codes]
         leaf_payload = {
-            'id': variant.id,
-            'sku': variant.sku,
-            'stock_quantity': variant.stock_quantity,
+            'id': variant.id, 'sku': variant.sku, 'stock_quantity': variant.stock_quantity,
             'weight': float(variant.weight) if variant.weight else None,
             'length': float(variant.length) if variant.length else None,
             'width': float(variant.width) if variant.width else None,
             'height': float(variant.height) if variant.height else None,
-            'price_override': (
-                float(variant.price_override.amount) if variant.price_override else None
-            ),
-            'price_override_currency': (
-                str(variant.price_override.currency) if variant.price_override else None
-            ),
+            'price_override': float(variant.price_override.amount) if variant.price_override else None,
+            'price_override_currency': str(variant.price_override.currency) if variant.price_override else None,
             'custom_attributes': variant.custom_attributes,
             'attributes': AttributeValueSerializer(variant.attributes.all(), many=True).data,
         }
@@ -610,14 +448,11 @@ def build_variant_tree(product):
             nodes.append(node)
         return nodes
 
-    return {
-        'structure': attr_codes,
-        'variants': build_nodes(tree, 0)
-    }
-class GalerieImageSerializer(serializers.ModelSerializer):
-    # Validate uploaded gallery image size/type
-    image = serializers.ImageField(validators=[validate_image_file])
+    return {'structure': attr_codes, 'variants': build_nodes(tree, 0)}
 
+
+class GalerieImageSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(validators=[validate_image_file])
     class Meta:
         model = GalerieImages
         fields = '__all__'
@@ -630,7 +465,6 @@ class ProductGalleryImageSerializer(serializers.ModelSerializer):
 
 
 class ProductDetailSerializer(ProductSerializer):
-    """Serializer pour le détail produit (lecture)."""
     variant_tree = serializers.SerializerMethodField()
     seller_id = serializers.IntegerField(source='shop.owner.user_id', read_only=True)
     galerie_images = ProductGalleryImageSerializer(many=True, read_only=True)
@@ -651,24 +485,12 @@ class ProductDetailSerializer(ProductSerializer):
         qs = Ratings.objects.filter(product=obj)
         aggregation = qs.aggregate(avg=Avg('rating'), total=Count('id'))
         total = aggregation['total'] or 0
-
-        breakdown_rows = (
-            qs.values('rating')
-            .annotate(total=Count('id'))
-            .order_by('rating')
-        )
+        breakdown_rows = qs.values('rating').annotate(total=Count('id')).order_by('rating')
         breakdown = {int(row['rating']): row['total'] for row in breakdown_rows}
-
         return {
             'average_rating': round(float(aggregation['avg'] or 0), 2),
             'total_reviews': total,
-            'ratings_breakdown': {
-                '1': breakdown.get(1, 0),
-                '2': breakdown.get(2, 0),
-                '3': breakdown.get(3, 0),
-                '4': breakdown.get(4, 0),
-                '5': breakdown.get(5, 0),
-            },
+            'ratings_breakdown': {str(i): breakdown.get(i, 0) for i in range(1, 6)},
         }
 
 
@@ -687,34 +509,14 @@ class ProductListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Products
         fields = [
-            'id',
-            'name',
-            'sku',
-            'image',
-            'base_price',
-            'category',
-            'category_name',
-            'pricing_display',
-            'total_stock',
-            'stock_quantity',
-            'min_order_quantity',
-            'average_rating',
-            'numbers_reviews',
-            'is_sponsored',
-            'has_variant',
-            'shop',
-            'shop_name',
-            'shop_is_verified',
-            'seller_id',
-            'base_price_currency',
-            'country_origin',
-            'description',
-            'status',
-            'is_active',
+            'id', 'name', 'sku', 'image', 'base_price', 'category', 'category_name',
+            'pricing_display', 'total_stock', 'stock_quantity', 'min_order_quantity',
+            'average_rating', 'numbers_reviews', 'is_sponsored', 'has_variant',
+            'shop', 'shop_name', 'shop_is_verified', 'seller_id', 'base_price_currency',
+            'country_origin', 'description', 'status', 'is_active',
         ]
 
     def get_pricing_display(self, obj):
-        """Synthétise la logique de prix pour le frontend (voir compute_pricing_display)."""
         return compute_pricing_display(obj)
 
     def get_has_variant(self, obj):
@@ -723,22 +525,20 @@ class ProductListSerializer(serializers.ModelSerializer):
 
 class ProductListWithCountrySerializer(ProductListSerializer):
     country_origin = serializers.CharField(source='country_origin', read_only=True)
-
     class Meta(ProductListSerializer.Meta):
         fields = ProductListSerializer.Meta.fields + ['country_origin']
 
 
 class RecentlyViewedProductSerializer(serializers.ModelSerializer):
     product_detail = serializers.SerializerMethodField()
-
     class Meta:
         model = RecentlyViewedProduct
         fields = ['id', 'user', 'product', 'viewed_at', 'view_count', 'session_key', 'ip_address', 'product_detail']
         read_only_fields = ['user', 'viewed_at', 'view_count']
 
     def get_product_detail(self, obj):
-        from apps.products.serializers import ProductSerializer
         return ProductSerializer(obj.product).data
+
 
 class ProductPromotionListSerializer(ProductListSerializer):
     promotion_details = serializers.SerializerMethodField()
@@ -749,67 +549,42 @@ class ProductPromotionListSerializer(ProductListSerializer):
 
     def get_promotion_details(self, obj):
         from django.utils.timezone import now
-        promo = obj.promotions.filter(
-            is_active=True,
-            start_at__lte=now(),
-            end_at__gte=now()
-        ).first()
+        promo = obj.promotions.filter(is_active=True, start_at__lte=now(), end_at__gte=now()).first()
         if not promo:
             return None
-        return {
-            'promo_price': float(promo.promo_price.amount),
-            'start_at': promo.start_at.isoformat(),
-            'end_at': promo.end_at.isoformat(),
-        }
+        return {'promo_price': float(promo.promo_price.amount), 'start_at': promo.start_at.isoformat(), 'end_at': promo.end_at.isoformat()}
 
     def get_remaining_time(self, obj):
         from django.utils.timezone import now
-        promo = obj.promotions.filter(
-            is_active=True,
-            start_at__lte=now(),
-            end_at__gte=now()
-        ).first()
+        promo = obj.promotions.filter(is_active=True, start_at__lte=now(), end_at__gte=now()).first()
         if not promo:
             return None
         delta = promo.end_at - now()
-        days = delta.days
-        hours = delta.seconds // 3600
-        minutes = (delta.seconds % 3600) // 60
         return {
-            'days': max(days, 0),
-            'hours': max(hours, 0),
-            'minutes': max(minutes, 0),
+            'days': max(delta.days, 0),
+            'hours': max(delta.seconds // 3600, 0),
+            'minutes': max((delta.seconds % 3600) // 60, 0),
             'total_seconds': max(int(delta.total_seconds()), 0),
         }
-
-class ColorSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Colors
-        fields = '__all__'
 
 
 class StockMovementSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True, default=None)
     variant_sku = serializers.CharField(source='variant.sku', read_only=True, default=None)
     created_by_email = serializers.CharField(source='created_by.email', read_only=True, default=None)
-
     class Meta:
         model = StockMovement
         fields = [
             'id', 'product', 'variant', 'product_name', 'variant_sku',
             'movement_type', 'quantity', 'previous_stock', 'new_stock',
-            'reference_type', 'reference_id', 'note',
-            'created_by', 'created_by_email', 'created_at',
+            'reference_type', 'reference_id', 'note', 'created_by', 'created_by_email', 'created_at',
         ]
         read_only_fields = ['id', 'previous_stock', 'new_stock', 'created_by', 'created_at']
 
 
 class StockAdjustmentSerializer(serializers.Serializer):
     quantity = serializers.IntegerField(help_text="Positif = entrée, négatif = sortie")
-    movement_type = serializers.ChoiceField(
-        choices=['restock', 'adjustment', 'return'],
-        default='adjustment'
-    )
+    movement_type = serializers.ChoiceField(choices=['restock', 'adjustment', 'return'], default='adjustment')
     reference_id = serializers.CharField(required=False, allow_blank=True)
     note = serializers.CharField(required=False, allow_blank=True)
 
@@ -821,7 +596,6 @@ class StockAdjustmentSerializer(serializers.Serializer):
 
 class ProductComparisonSerializer(serializers.ModelSerializer):
     product_detail = serializers.SerializerMethodField()
-
     class Meta:
         model = ProductComparison
         fields = ['id', 'product', 'added_at', 'product_detail']
@@ -829,4 +603,3 @@ class ProductComparisonSerializer(serializers.ModelSerializer):
 
     def get_product_detail(self, obj):
         return ProductListSerializer(obj.product, context=self.context).data
-
