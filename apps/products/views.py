@@ -246,16 +246,19 @@ class ProductViewSet(viewsets.ModelViewSet):
             attr_ids = CategoryAttribute.objects.filter(
                 category=category
             ).values_list('attribute_id', flat=True)
-            attributes = Attribute.objects.filter(id__in=attr_ids)
+            if attr_ids:
+                attributes = Attribute.objects.filter(id__in=attr_ids)
+            else:
+                attributes = Attribute.objects.filter(is_variant=True)
         else:
             attributes = Attribute.objects.filter(is_variant=True)
 
-        structure = []
+        result = []
         for attr in attributes:
             values = AttributeValue.objects.filter(
                 attribute=attr, is_active=True
             ).values('id', 'value', 'code', 'hex_color')
-            structure.append({
+            result.append({
                 'id': attr.id,
                 'name': attr.name,
                 'code': attr.code,
@@ -264,7 +267,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 
         return Response({
             'structure': product.variant_structure or [],
-            'attributes': structure,
+            'attributes': result,
         })
     
 
@@ -629,6 +632,20 @@ class ProductGalleryViewSet(viewsets.ViewSet):
         qs = GalerieImages.objects.filter(id__in=ids)
         deleted_count, _ = qs.delete()
         return Response({"deleted": deleted_count}, status=200)
+
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request, product_pk=None):
+        product = self._get_product(product_pk)
+        ids = request.data.get("ids", [])
+        if not isinstance(ids, list) or not ids:
+            return Response({"error": "ids must be a non-empty list"}, status=400)
+        images = GalerieImages.objects.filter(id__in=ids, product=product)
+        images_by_id = {img.id: img for img in images}
+        for pos, img_id in enumerate(ids):
+            if img_id in images_by_id:
+                images_by_id[img_id].position = pos
+                images_by_id[img_id].save(update_fields=['position'])
+        return Response({"message": "Ordre mis à jour"}, status=200)
 
     @action(detail=False, methods=['delete'], url_path='delete-main-image')
     def delete_main_image(self, request, product_pk=None):

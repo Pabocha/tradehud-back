@@ -119,6 +119,12 @@ class Products(models.Model):
     variant_structure = models.JSONField(default=list, blank=True)
     objects = ProductQuerySet.as_manager()
 
+    def save(self, *args, **kwargs):
+        if not self.sku:
+            prefix = ''.join(c for c in (self.name or '')[:3].upper() if c.isalnum())
+            self.sku = f"{prefix}-{hashlib.md5(os.urandom(16)).hexdigest()[:8]}"
+        super().save(*args, **kwargs)
+
     @property
     def is_currently_sponsored(self):
         now = timezone.now()

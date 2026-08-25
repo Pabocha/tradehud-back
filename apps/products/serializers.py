@@ -413,6 +413,14 @@ class ProductSerializer(serializers.ModelSerializer):
             except Exception:
                 raise serializers.ValidationError({'sizes': 'Format JSON invalide.'})
 
+        # Parser 'features' si c'est une chaîne JSON
+        features = data.get('features')
+        if features and isinstance(features, str):
+            try:
+                data['features'] = json.loads(features)
+            except Exception:
+                pass
+
         return super().to_internal_value(data)
     
     class Meta:

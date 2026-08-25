@@ -412,7 +412,7 @@ class SupportChatStartView(APIView):
 					status=status.HTTP_200_OK,
 				)
 
-		# MODIFICATION ICI — Routage par rôle support + capacité (agents les moins chargés)
+		# Routage par rôle support + capacité (agents les moins chargés)
 		candidates = (
 			User.objects
 			.filter(is_active=True, type_user='support')

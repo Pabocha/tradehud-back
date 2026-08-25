@@ -29,7 +29,7 @@ class CategoryHierarchySerializer(ModelSerializer):
     def get_children(self, obj):
         children = obj.children.filter(is_active=True)
         if children.exists():
-            return CategorySerializer(children, many=True, context=self.context).data
+            return CategoryHierarchySerializer(children, many=True, context=self.context).data
         return []
 
 
