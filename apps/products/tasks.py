@@ -18,6 +18,19 @@ def deactivate_expired_promotions():
 
 
 @shared_task
+def deactivate_expired_sponsored_products():
+    """Désactive les sponsorings produits dont la date de fin est dépassée."""
+    from apps.products.models import Products
+
+    now = timezone.now()
+    count = Products.objects.filter(
+        is_sponsored=True,
+        sponsored_end__lt=now,
+    ).update(is_sponsored=False, sponsored_start=None, sponsored_end=None)
+    return {'deactivated': count}
+
+
+@shared_task
 def verify_stock_consistency_task():
     """
     Tâche Celery pour vérifier la cohérence du stock.

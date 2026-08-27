@@ -66,7 +66,7 @@ class SellerWalletViewSet(viewsets.GenericViewSet):
     def withdrawals(self, request):
         shop = self._get_owned_shop(request)
         wallet = get_or_create_wallet(shop)
-        if request.method == 'get':
+        if request.method == 'GET':
             qs = wallet.withdrawals.all()
             page = self.paginate_queryset(qs)
             if page is not None:

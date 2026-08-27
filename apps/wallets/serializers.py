@@ -1,15 +1,14 @@
 from decimal import Decimal
 
+from django.db.models import Sum
 from rest_framework import serializers
-
-from djmoney.contrib.django_rest_framework.fields import MoneyField
 
 from .models import SellerWallet, WalletTransaction, WithdrawalRequest
 
 
 class WalletSerializer(serializers.ModelSerializer):
     shop_name = serializers.CharField(source='shop.name', read_only=True)
-    pending_withdrawal_total = MoneyField(max_digits=15, decimal_places=2, read_only=True)
+    pending_withdrawal_total = serializers.SerializerMethodField()
 
     class Meta:
         model = SellerWallet
@@ -20,8 +19,10 @@ class WalletSerializer(serializers.ModelSerializer):
         ]
 
     def get_pending_withdrawal_total(self, obj):
-        total = obj.withdrawals.filter(status='pending').aggregate(t=serializers.models.Sum('amount'))['t']
-        return total if total else 0
+        total = obj.withdrawals.filter(status='pending').aggregate(t=Sum('amount'))['t']
+        if total is None:
+            total = Decimal('0.00')
+        return str(getattr(total, 'amount', total))
 
 
 class WalletTransactionSerializer(serializers.ModelSerializer):
@@ -37,14 +38,18 @@ class WalletTransactionSerializer(serializers.ModelSerializer):
 
 
 class WithdrawalRequestSerializer(serializers.ModelSerializer):
+    processed_by_email = serializers.CharField(
+        source='processed_by.email', default=None, read_only=True
+    )
+
     class Meta:
         model = WithdrawalRequest
         fields = [
             'id', 'amount', 'method', 'destination',
             'status', 'staff_note',
-            'created_at', 'processed_at',
+            'processed_by_email', 'processed_at', 'created_at',
         ]
-        read_only_fields = ['status', 'staff_note', 'processed_at']
+        read_only_fields = ['status', 'staff_note', 'processed_by_email', 'processed_at']
 
 
 class WithdrawalCreateSerializer(serializers.Serializer):

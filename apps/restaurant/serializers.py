@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import (
@@ -427,14 +429,14 @@ class RestaurantScheduleUpdateSerializer(serializers.ModelSerializer):
 class RestaurantDeliverySettingsSerializer(serializers.Serializer):
     """Serializer pour mise à jour des paramètres de livraison"""
     delivery_fee = serializers.DecimalField(
-        max_digits=10, 
+        max_digits=10,
         decimal_places=2,
-        min_value=0
+        min_value=Decimal('0.00')
     )
     minimum_order = serializers.DecimalField(
         max_digits=10,
         decimal_places=2,
-        min_value=0
+        min_value=Decimal('0.00')
     )
     delivery_radius = serializers.IntegerField(min_value=1, max_value=50)
     
