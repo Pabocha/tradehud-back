@@ -80,11 +80,20 @@ class ProductPriceTierSerializer(serializers.ModelSerializer):
 
 class ProductPromotionSerializer(serializers.ModelSerializer):
     promo_price = MoneyField(max_digits=15, decimal_places=2)
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    product_image = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductPromotion
-        fields = ['id', 'product', 'promo_price', 'start_at', 'end_at', 'is_active', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'product', 'created_at', 'updated_at']
+        fields = ['id', 'product', 'product_name', 'product_image', 'promo_price', 'start_at', 'end_at', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'product', 'product_name', 'product_image', 'created_at', 'updated_at']
+
+    def get_product_image(self, obj):
+        request = self.context.get('request')
+        if obj.product.image:
+            url = obj.product.image.url
+            return request.build_absolute_uri(url) if request else url
+        return None
 
     def validate(self, attrs):
         instance = getattr(self, "instance", None)
