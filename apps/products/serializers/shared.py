@@ -36,6 +36,47 @@ class ProductPriceTierSerializer(serializers.ModelSerializer):
         validated_data['product'] = product
         return super().create(validated_data)
 
+    def validate(self, attrs):
+        product = self.context.get('product')
+        instance = self.instance
+
+        min_qty = attrs.get('min_quantity', getattr(instance, 'min_quantity', None))
+        max_qty = attrs.get('max_quantity', getattr(instance, 'max_quantity', None))
+        price = attrs.get('price', getattr(instance, 'price', None) if instance else None)
+
+        if min_qty is None or min_qty < 1:
+            raise serializers.ValidationError(
+                {'min_quantity': 'La quantité minimale doit être au moins 1.'}
+            )
+        if max_qty is not None and max_qty <= min_qty:
+            raise serializers.ValidationError(
+                {'max_quantity': 'La quantité maximale doit être supérieure à la quantité minimale (ou vide pour illimité).'}
+            )
+
+        if product:
+            tiers = product.price_tiers.all()
+            if instance:
+                tiers = tiers.exclude(pk=instance.pk)
+
+            def overlaps(a_lo, a_hi, b_lo, b_hi):
+                a_hi = a_hi if a_hi is not None else 10 ** 9
+                b_hi = b_hi if b_hi is not None else 10 ** 9
+                return a_lo <= b_hi and b_lo <= a_hi
+
+            for t in tiers:
+                if overlaps(min_qty, max_qty, t.min_quantity, t.max_quantity):
+                    raise serializers.ValidationError(
+                        {'min_quantity': f'Ce palier chevauche le palier existant « {t.min_quantity}+ ».'}
+                    )
+
+            if price is not None and product.base_price:
+                if price > product.base_price:
+                    raise serializers.ValidationError(
+                        {'price': 'Le prix du palier ne peut pas dépasser le prix de base du produit.'}
+                    )
+
+        return attrs
+
 
 class ProductPromotionSerializer(serializers.ModelSerializer):
     promo_price = MoneyField(max_digits=15, decimal_places=2)
@@ -277,9 +318,9 @@ def compute_pricing_display(obj):
         }
     price_tiers = obj.price_tiers.all().order_by('min_quantity')
     if price_tiers.exists():
-        min_price = float(price_tiers.first().price.amount)
-        max_price = float(price_tiers.last().price.amount)
-        max_price = max(max_price, base_price_amount)
+        tier_prices = [float(t.price.amount) for t in price_tiers]
+        min_price = min(tier_prices)
+        max_price = max(max(tier_prices), base_price_amount)
         return {
             'type': 'tiers',
             'display_text': f'{int(round(min_price))} - {int(round(max_price))} {currency}',
