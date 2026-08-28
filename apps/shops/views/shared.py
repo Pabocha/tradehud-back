@@ -2,12 +2,14 @@ from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, permissions, filters, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from django.utils import timezone
 from django.db.models import Sum, Avg
 from apps.products.models import Products
 from apps.products.serializers import ProductSerializer
 from apps.accounts.models import ShopFollow
 from apps.categories.models import Categories
 from django_filters.rest_framework import DjangoFilterBackend
+from ..analytics import increment_shop_visit
 from ..serializers import ShopSerializer, ShopListSerializer, ShopPublicDetailSerializer, ShopStatisticsSerializer
 from ..models import Shops, ShopStatistics
 
@@ -26,6 +28,36 @@ class PublicShopViewSet(viewsets.ReadOnlyModelViewSet):
         )
         serializer = ShopPublicDetailSerializer(shop, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.AllowAny], url_path='visit')
+    def record_visit(self, request, pk=None):
+        """Compte une visite unique (cooldown ~1h par session/IP) de la page boutique.
+        Le compteur est incrémenté de façon atomique en Redis, puis flushé en base
+        par la tâche Celery `flush_visits_and_views`.
+        """
+        shop = get_object_or_404(
+            Shops.objects.filter(is_deleted=False), pk=pk
+        )
+        cooldown_seconds = 60 * 60
+        if not request.session.session_key:
+            request.session.create()
+        session_key = request.session.session_key
+        ip = request.META.get('HTTP_X_FORWARDED_FOR')
+        if ip:
+            ip = ip.split(',')[0].strip()
+        else:
+            ip = request.META.get('REMOTE_ADDR', '')
+
+        dedup_key = f'th:shop_visit:{shop.id}:{session_key}:{ip}'
+        last_viewed = request.session.get(dedup_key)
+        now_ts = timezone.now().timestamp()
+        recorded = False
+        if not last_viewed or (now_ts - float(last_viewed)) >= cooldown_seconds:
+            recorded = increment_shop_visit(shop.id, timezone.localdate())
+            request.session[dedup_key] = now_ts
+            request.session.modified = True
+
+        return Response({'shop_id': shop.id, 'recorded': recorded}, status=status.HTTP_200_OK)
 
 
 class ShopListViewSet(viewsets.ReadOnlyModelViewSet):

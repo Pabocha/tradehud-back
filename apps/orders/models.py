@@ -134,6 +134,11 @@ class Orders(models.Model):
             line.variant.stock_quantity -= line.quantity
             line.variant.save()
     
+    class Meta:
+        indexes = [
+            models.Index(fields=['status', 'order_date'], name='idx_orders_status_date'),
+        ]
+
     def __str__(self):
         return self.order_number
 

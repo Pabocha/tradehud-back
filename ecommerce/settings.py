@@ -219,6 +219,25 @@ DATABASES = {
     }
 }
 
+# ---------------------------------------------------------------------------
+# Cache & Sessions Redis
+# ---------------------------------------------------------------------------
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'IGNORE_EXCEPTIONS': True,
+        },
+        'KEY_PREFIX': 'th',
+        'TIMEOUT': 300,
+    }
+}
+
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
+
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -348,6 +367,11 @@ CELERY_BEAT_SCHEDULE = {
     'recalculate-daily-shop-statistics': {
         'task': 'apps.shops.tasks.recalculate_daily_shop_statistics',
         'schedule': crontab(hour=16, minute=57),  # 2 AM UTC
+    },
+    # Vidage régulier des compteurs de visites/vues tamponnés en Redis
+    'flush-visits-and-views': {
+        'task': 'apps.shops.tasks.flush_visits_and_views',
+        'schedule': crontab(minute='*/5'),
     },
     # (Optionnel) Nettoyage hebdomadaire des anciennes stats le dimanche à 3h
     'cleanup-old-statistics': {

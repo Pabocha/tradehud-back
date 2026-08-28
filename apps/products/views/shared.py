@@ -18,6 +18,7 @@ from apps.products.models import (
     RecentlyViewedProduct, StockMovement, ProductComparison,
     AttributeValue, Attribute, Colors,
 )
+from apps.shops.analytics import increment_product_view, buffered_views_product
 from apps.products.filters import ProductFilter
 from apps.products.serializers import (
     ProductSerializer, ProductListSerializer, ProductDetailSerializer,
@@ -201,12 +202,13 @@ class ProductViewSet(viewsets.ModelViewSet):
         now_ts = timezone.now().timestamp()
         incremented = False
         if not last_viewed or (now_ts - float(last_viewed)) >= cooldown_seconds:
-            Products.objects.filter(id=product.id).update(views_count=F('views_count') + 1)
+            increment_product_view(product.id)
             incremented = True
             request.session[key] = now_ts
             request.session.modified = True
         product.refresh_from_db(fields=['views_count'])
-        return Response({'product_id': product.id, 'views_count': product.views_count, 'incremented': incremented}, status=status.HTTP_200_OK)
+        total = product.views_count + buffered_views_product(product.id)
+        return Response({'product_id': product.id, 'views_count': total, 'incremented': incremented}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'], url_path='variants-list', permission_classes=[AllowAny])
     def variants_list(self, request, pk=None):
@@ -296,7 +298,7 @@ class RecentlyViewedProductViewSet(viewsets.ModelViewSet):
                 obj.ip_address = ip
             obj.save()
         else:
-            Products.objects.filter(pk=product.pk).update(views_count=F('views_count') + 1)
+            increment_product_view(product.pk)
         serializer = self.get_serializer(obj)
         return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 

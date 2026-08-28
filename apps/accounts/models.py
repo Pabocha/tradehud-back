@@ -196,7 +196,10 @@ class ShopFollow(models.Model):
     followed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'shop')  
+        unique_together = ('user', 'shop')
+        indexes = [
+            models.Index(fields=['followed_at'], name='idx_shop_follow_date'),
+        ]  
 
     def __str__(self):
         return f"{self.user} suit {self.shop}"

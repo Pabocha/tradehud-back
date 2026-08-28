@@ -1,5 +1,6 @@
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 from .models import Ratings, ShopRatings
 
@@ -28,7 +29,17 @@ def update_product_average_rating(sender, instance, **kwargs):
 @receiver([post_save, post_delete], sender=ShopRatings)
 def update_shop_statistics_on_shop_rating_change(sender, instance, **kwargs):
     # Import local to avoid circular imports at app load.
-    from apps.shops.views import update_shop_statistics
+    from apps.shops.views import recompute_shop_rating
+    from apps.shops.models import ShopStatistics
 
-    if instance.shop:
-        update_shop_statistics(instance.shop)
+    if not instance.shop_id:
+        return
+    average_rating, number_of_reviews = recompute_shop_rating(instance.shop)
+    ShopStatistics.objects.update_or_create(
+        shop=instance.shop,
+        date=timezone.localdate(),
+        defaults={
+            'shop_average_rating': average_rating,
+            'shop_number_of_reviews': number_of_reviews,
+        },
+    )

@@ -114,3 +114,6 @@ class ShopStatistics(models.Model):
 
     # Efficacité
     inventory_turnover_ratio = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    class Meta:
+        unique_together = [('shop', 'date')]
